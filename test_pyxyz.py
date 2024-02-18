@@ -13,7 +13,7 @@ def opt_and_compare(rpath):
     return rmsd_value
 
 
-rpaths=[ "da_test", "ep_test","apw_test", "apw2_test",]
+rpaths=[ "da_test", "ep_test","sn2_test", "et_test","apw_test", "apw2_test","apw3_test"]
 result={}
 for rpath in rpaths:
     print("   ")
