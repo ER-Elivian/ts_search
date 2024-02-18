@@ -5,206 +5,206 @@ vec_len = lambda v:(np.matmul(v,v.T))**0.5
 control_top = lambda chrg,control_strs: control_strs.extend([f"$chrg {chrg}\n","$constrain\n"]) #заполнить верхнюю часть control файла
 control_end = lambda f_c,control_strs: control_strs.extend([f"    force constant = {f_c}\n","$end\n"])#заполнить нижнюю часть control файла
 
+def sign(x):
+    if x>0:
+        return 1
+    if x<0:
+        return -1
+    return 0
+
+def opt(rpath,xyz_name,solvent):
+    with open(os.path.join(rpath,"xtbout"),"w+") as xtbout:
+        if solvent=="vacuum":
+            subprocess.call(["xtb", xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
+        else:
+            subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",solvent,"--opt","--vtight"],stdout=xtbout)
+
+def o_grad(rpath,chrg,solvent):
+    with open(os.path.join(rpath,"xtbout"),"w+") as xtbout:
+        if solvent=="vacuum":
+            subprocess.call(["xtb", "xtbopt.xyz", "--chrg", str(chrg),"--grad"],stdout=xtbout)
+        else:
+            subprocess.call(["xtb", "xtbopt.xyz", "--chrg", str(chrg), "--alpb", solvent,"--grad"],stdout=xtbout)
+
+def adaptive_opt_cap(grad_strs, xyzs_strs, bonds_to_search):
+    search_atoms=set()
+    for bond in bonds_to_search:
+        search_atoms.add(bond[0])
+        search_atoms.add(bond[1])
+    sum_forces=0
+    num_forces=0
+    for i in range(1,len(xyzs_strs)-1):
+        if i not in search_atoms:
+            vec_force=extractGradient(i+len(xyzs_strs)-1,grad_strs)
+            sum_forces+=vec_len(vec_force)
+            num_forces+=1
+    return sum_forces/num_forces
+
+def change_fn(length, search_bonds):
+    return length/len(search_bonds)
+    '''len_sign=sign(length)
+    x=len_sign*length
+    change=(x**1.4)*5#(x**(0.1+1.9/(x**0.1+1)))*5
+
+    if change>cap:
+        change=cap
+    return change*len_sign'''
+
+def log_xyz(path, xyzs_strs, mode=None):
+    if mode=="new":
+        open_prm_str="w+"
+    else:
+        open_prm_str="a"
+    with open(os.path.join(path,"TS_search_log.xyz"),open_prm_str) as log:
+        log.writelines(xyzs_strs)
+
+def log_forces(path, forces, mode=None):
+    if mode=="new":
+        open_prm_str="w+"
+    else:
+        open_prm_str="a"
+    with open(os.path.join(path,"force_log.xyz"),open_prm_str) as log:
+        log.write(forces)
+
+def extract_AB_dir(xyzs_strs, num_A,num_B):
+    vec_A=xyzs_strs[num_A+1].split()[1:]
+    for num,coord in enumerate(vec_A):
+        vec_A[num]=float(coord)
+
+    vec_B=xyzs_strs[num_B+1].split()[1:]
+    for num,coord in enumerate(vec_B):
+        vec_B[num]=float(coord)
+
+    res=np.subtract(vec_B,vec_A)
+    return res
+
+def extractGradient(line_num,grad_strs):
+    gradline=grad_strs[line_num]
+    gradstr_arr=gradline.split()
+    gradarr=[]
+    for i in range(len(gradstr_arr)):
+        gradarr.append(float(gradstr_arr[i]))
+    return np.array(gradarr)
+
+def move_bonds(rpath, xyzs_strs, search_bonds, lens, not_optimized_in_iteration, init_bonds, grad_strs, control_strs, logname,settings):
+    MIN_BOND=0.8
+    MAX_BOND=2.8
+    sum_changes=0
+    min_change=1000
+    max_change=-1000
+    changes={}
+    settings["step"]+=1
+    cur_c_m=settings["change_mode"]
+    for bond in search_bonds:#найдём градиент (желание растянуться) вдоль каждой связи
+        num_A=bond[0]
+        num_B=bond[1]
+        key=f"{bond[0]}, {bond[1]}"
+
+        grad_A=extractGradient(num_A+len(xyzs_strs)-1,grad_strs)
+        grad_B=extractGradient(num_B+len(xyzs_strs)-1,grad_strs)
+        AB_dir=extract_AB_dir(xyzs_strs,num_A,num_B)
+        summ_grad=np.subtract(grad_B,grad_A)
+
+        if not key in lens.keys():
+            print(f"key \"{key}\" not in lens.keys()")
+            lens[key] = vec_len(AB_dir)
+
+        s_g_proj=projection(summ_grad, AB_dir)
+        proj_len=vec_len(s_g_proj)
+
+        s_g_p_sign=sign(s_g_proj[0]*AB_dir[0])
+
+        changes[key]=s_g_p_sign*proj_len#удлиннение (если отрицательно - укорочение) связи
+        max_change=max(changes[key], max_change)
+        min_change=min(changes[key], min_change)
+        sum_changes+=changes[key]
+    mean_change=sum_changes/len(search_bonds)#среднее "желание растянуться"
+    div_of_changes=max_change-min_change#отклонение 
+
+    if settings["DoC_cutoff"]==0:
+        settings["DoC_cutoff"]=max(div_of_changes*1.001, 0.001)
+    
+    #print(div_of_changes)
+    #print(prev_dc)
+
+    change_if_less_DoC=settings["preferred_change_mode"]*(change_fn(mean_change,search_bonds))
+    if abs(change_if_less_DoC)<0.000001:#предел разрешения control, а вблизи ПС тут получается очень маленькое значение (10^-8)
+        change_if_less_DoC=sign(change_if_less_DoC)*0.000001
+    for bond in search_bonds:
+        key=f"{bond[0]}, {bond[1]}"
+        bond_len=lens[key]
+        
+        if div_of_changes<settings["DoC_cutoff"]: # нужно "отпущение" связей
+            bond_change=change_if_less_DoC
+            settings["change_mode"]=-settings["preferred_change_mode"]
+            settings["pass_turns"]=2#1 снимется уже в конце этого хода, так что 2
+        elif div_of_changes<settings["prev_dc"] or settings["pass_turns"]>0:#нужно выравнивание по силам
+            #print(f"{div_of_changes<prev_dc} {settings["change_mode"]}")
+            cur_c_m=settings["change_mode"]
+            bond_change=settings["change_mode"]*(change_fn(changes[key]-mean_change,search_bonds))
+        else:#если разница между силами не становится меньше - меняем знак в алгоритме
+            cur_c_m=-settings["change_mode"]
+            bond_change=cur_c_m*(change_fn(changes[key]-mean_change,search_bonds))
+
+        res_bond=bond_len+bond_change
+        #print(f"change {bond_change}, len {bond_len}, res {res_bond}")
+        control_strs.append(f"    distance: {key}, {res_bond}\n")
+        lens[key]=res_bond
+
+        if res_bond>MAX_BOND or res_bond<MIN_BOND:
+        #если в результате поиска ПС связь порвалась или замкнулась, то  результат сбрасывается, а в начальной геометрии соответствующая связь немного (на 0,02) растягивается или укорачивается, чтобы притяжение или отталкивание было меньше
+            not_optimized_in_iteration[rpath]=True
+
+            if bond[0]<bond[1]:
+                key=f"{bond[0]}, {bond[1]}"
+            else:
+                key=f"{bond[1]}, {bond[0]}"
+
+            if res_bond>MAX_BOND:
+                init_bonds[key]-=0.1
+            else:
+                init_bonds[key]+=0.1
+            print(init_bonds)
+    if settings["pass_turns"]>0:
+        if abs(change_if_less_DoC)==0.000001:
+            settings["DoC_cutoff"]*=0.99
+        else:
+            settings["DoC_cutoff"]*=0.995
+        settings["pass_turns"]-=1
+
+    settings["prev_dc"]=div_of_changes
+    if settings["change_mode"]*cur_c_m<0:
+        settings["change_mode"]=cur_c_m
+    return max(abs(min_change),max_change)
+
+def read_bonds(rpath,search_bonds):
+    with open(os.path.join(rpath,"bonds_to_search"),"r") as bonds:
+        #print(rpath)
+        chrg=int(bonds.readline())
+        solvent=bonds.readline().split()[0]
+        line=bonds.readline()
+        #print(line)
+        while line != "":
+            if line.startswith("b"):#все остальные реакции обозначим просто связями без отступа
+                #print(line)
+                line_split=line.split()
+                if line_split[0]=='b':
+                    search_bonds.append([int(line_split[1]), int(line_split[2]), int(line_split[3])])
+            line=bonds.readline()
+    return chrg,solvent
+
+def log(str,logname):
+    with open(logname,"a") as file:
+        file.write(str)
+
+    #------run------#
 def find_TS(path, xyz_name,optimized_cap=0, ratio=0, maxstep=7000):
     if optimized_cap==0 and ratio==0:
         print("please, enter optimized_cap or (and) ratio")
         return
-    
+
     settings=dict(step=0,prev_dc=100,change_mode=0, preferred_change_mode=0, pass_turns=0, DoC_cutoff=0)
-    MIN_BOND=0.8
-    MAX_BOND=2.8
-
-    def sign(x):
-        if x>0:
-            return 1
-        if x<0:
-            return -1
-        return 0
-
-    def opt(rpath,xyz_name,solvent):
-        with open(os.path.join(rpath,"xtbout"),"w+") as xtbout:
-            if solvent=="vacuum":
-                subprocess.call(["xtb", xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
-            else:
-                subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",solvent,"--opt","--vtight"],stdout=xtbout)
-
-    def o_grad(rpath,chrg,solvent):
-        with open(os.path.join(rpath,"xtbout"),"w+") as xtbout:
-            if solvent=="vacuum":
-                subprocess.call(["xtb", "xtbopt.xyz", "--chrg", str(chrg),"--grad"],stdout=xtbout)
-            else:
-                subprocess.call(["xtb", "xtbopt.xyz", "--chrg", str(chrg), "--alpb", solvent,"--grad"],stdout=xtbout)
     
-    def adaptive_opt_cap(grad_strs, bonds_to_search):
-        search_atoms=set()
-        for bond in bonds_to_search:
-            search_atoms.add(bond[0])
-            search_atoms.add(bond[1])
-        sum_forces=0
-        num_forces=0
-        for i in range(1,len(xyzs_strs)-1):
-            if i not in search_atoms:
-                vec_force=extractGradient(i+len(xyzs_strs)-1,grad_strs)
-                sum_forces+=vec_len(vec_force)
-                num_forces+=1
-        return sum_forces/num_forces
-        
-    def change_fn(length, cap):
-        return length/len(search_bonds)
-        '''len_sign=sign(length)
-        x=len_sign*length
-        change=(x**1.4)*5#(x**(0.1+1.9/(x**0.1+1)))*5
-
-        if change>cap:
-            change=cap
-        return change*len_sign'''
-
-    def log_xyz(path, xyzs_strs, mode=None):
-        if mode=="new":
-            open_prm_str="w+"
-        else:
-            open_prm_str="a"
-        with open(os.path.join(path,"TS_search_log.xyz"),open_prm_str) as log:
-            log.writelines(xyzs_strs)
-
-    def log_forces(path, forces, mode=None):
-        if mode=="new":
-            open_prm_str="w+"
-        else:
-            open_prm_str="a"
-        with open(os.path.join(path,"force_log.xyz"),open_prm_str) as log:
-            log.write(forces)
-
-    def extract_AB_dir(xyzs_strs, num_A,num_B):
-        vec_A=xyzs_strs[num_A+1].split()[1:]
-        for num,coord in enumerate(vec_A):
-            vec_A[num]=float(coord)
-
-        vec_B=xyzs_strs[num_B+1].split()[1:]
-        for num,coord in enumerate(vec_B):
-            vec_B[num]=float(coord)
-
-        res=np.subtract(vec_B,vec_A)
-        return res
-
-    def extractGradient(line_num,grad_strs):
-        gradline=grad_strs[line_num]
-        gradstr_arr=gradline.split()
-        gradarr=[]
-        for i in range(len(gradstr_arr)):
-            gradarr.append(float(gradstr_arr[i]))
-        return np.array(gradarr)
-    
-    def move_bonds(rpath, xyzs_strs, search_bonds, lens, not_optimized_in_iteration, init_bonds, grad_strs, control_strs, logname):
-        sum_changes=0
-        min_change=1000
-        max_change=-1000
-        changes={}
-        settings["step"]+=1
-        cur_c_m=settings["change_mode"]
-        for bond in search_bonds:#найдём градиент (желание растянуться) вдоль каждой связи
-            num_A=bond[0]
-            num_B=bond[1]
-            key=f"{bond[0]}, {bond[1]}"
-
-            grad_A=extractGradient(num_A+len(xyzs_strs)-1,grad_strs)
-            grad_B=extractGradient(num_B+len(xyzs_strs)-1,grad_strs)
-            AB_dir=extract_AB_dir(xyzs_strs,num_A,num_B)
-            summ_grad=np.subtract(grad_B,grad_A)
-
-            if not key in lens.keys():
-                print(f"key \"{key}\" not in lens.keys()")
-                lens[key] = vec_len(AB_dir)
-
-            s_g_proj=projection(summ_grad, AB_dir)
-            proj_len=vec_len(s_g_proj)
-
-            s_g_p_sign=sign(s_g_proj[0]*AB_dir[0])
-
-            changes[key]=s_g_p_sign*proj_len#удлиннение (если отрицательно - укорочение) связи
-            max_change=max(changes[key], max_change)
-            min_change=min(changes[key], min_change)
-            sum_changes+=changes[key]
-        mean_change=sum_changes/len(search_bonds)#среднее "желание растянуться"
-        div_of_changes=max_change-min_change#отклонение 
-
-        if settings["DoC_cutoff"]==0:
-            settings["DoC_cutoff"]=max(div_of_changes*1.001, 0.001)
-        
-        #print(div_of_changes)
-        #print(prev_dc)
-
-        change_if_less_DoC=settings["preferred_change_mode"]*(change_fn(mean_change,0.01))
-        if abs(change_if_less_DoC)<0.000001:#предел разрешения control, а вблизи ПС тут получается очень маленькое значение (10^-8)
-            change_if_less_DoC=sign(change_if_less_DoC)*0.000001
-        for bond in search_bonds:
-            key=f"{bond[0]}, {bond[1]}"
-            bond_len=lens[key]
-            
-            if div_of_changes<settings["DoC_cutoff"]: # нужно "отпущение" связей
-                bond_change=change_if_less_DoC
-                settings["change_mode"]=-settings["preferred_change_mode"]
-                settings["pass_turns"]=2#1 снимется уже в конце этого хода, так что 2
-            elif div_of_changes<settings["prev_dc"] or settings["pass_turns"]>0:#нужно выравнивание по силам
-                #print(f"{div_of_changes<prev_dc} {settings["change_mode"]}")
-                cur_c_m=settings["change_mode"]
-                bond_change=settings["change_mode"]*(change_fn(changes[key]-mean_change,0.01))
-            else:#если разница между силами не становится меньше - меняем знак в алгоритме
-                cur_c_m=-settings["change_mode"]
-                bond_change=cur_c_m*(change_fn(changes[key]-mean_change,0.01))
-
-            res_bond=bond_len+bond_change
-            #print(f"change {bond_change}, len {bond_len}, res {res_bond}")
-            control_strs.append(f"    distance: {key}, {res_bond}\n")
-            lens[key]=res_bond
-
-            if res_bond>MAX_BOND or res_bond<MIN_BOND:
-            #если в результате поиска ПС связь порвалась или замкнулась, то  результат сбрасывается, а в начальной геометрии соответствующая связь немного (на 0,02) растягивается или укорачивается, чтобы притяжение или отталкивание было меньше
-                not_optimized_in_iteration[rpath]=True
-
-                if bond[0]<bond[1]:
-                    key=f"{bond[0]}, {bond[1]}"
-                else:
-                    key=f"{bond[1]}, {bond[0]}"
-
-                if res_bond>MAX_BOND:
-                    init_bonds[key]-=0.1
-                else:
-                    init_bonds[key]+=0.1
-                print(init_bonds)
-        if settings["pass_turns"]>0:
-            if abs(change_if_less_DoC)==0.000001:
-                settings["DoC_cutoff"]*=0.99
-            else:
-                settings["DoC_cutoff"]*=0.995
-            settings["pass_turns"]-=1
-
-        settings["prev_dc"]=div_of_changes
-        if settings["change_mode"]*cur_c_m<0:
-            settings["change_mode"]=cur_c_m
-        return max(abs(min_change),max_change)
-
-    def read_bonds(rpath,search_bonds):
-        with open(os.path.join(rpath,"bonds_to_search"),"r") as bonds:
-            #print(rpath)
-            chrg=int(bonds.readline())
-            solvent=bonds.readline().split()[0]
-            line=bonds.readline()
-            #print(line)
-            while line != "":
-                if line.startswith("b"):#все остальные реакции обозначим просто связями без отступа
-                    #print(line)
-                    line_split=line.split()
-                    if line_split[0]=='b':
-                        search_bonds.append([int(line_split[1]), int(line_split[2]), int(line_split[3])])
-                line=bonds.readline()
-        return chrg,solvent
-
-    def log(str,logname):
-        with open(logname,"a") as file:
-            file.write(str)
-
-    #------run------#
     #method="--gfn1"
     #with open("way_log.txt","w+") as file:
     #    a=1
@@ -333,7 +333,7 @@ def find_TS(path, xyz_name,optimized_cap=0, ratio=0, maxstep=7000):
                     grad_strs.append(line)
                     line=gradient.readline()
             if optimized_cap=="auto":
-                optimized_cap=adaptive_opt_cap(grad_strs, search_bonds)
+                optimized_cap=adaptive_opt_cap(grad_strs,xyzs_strs, search_bonds)
                 print(f"because optimized cap is not defined, calculated optimized_cap is {optimized_cap}")
                 exit()
             control_strs=[]
@@ -342,7 +342,7 @@ def find_TS(path, xyz_name,optimized_cap=0, ratio=0, maxstep=7000):
             proj_len=1000
             not_optimized=False
 
-            proj_len=move_bonds(rpath, xyzs_strs, search_bonds, lens, not_optimized_in_iteration, init_bonds, grad_strs, control_strs, logname)
+            proj_len=move_bonds(rpath, xyzs_strs, search_bonds, lens, not_optimized_in_iteration, init_bonds, grad_strs, control_strs, logname, settings)
 
             if optimized_cap!=0:
                 if proj_len>optimized_cap:
@@ -350,7 +350,7 @@ def find_TS(path, xyz_name,optimized_cap=0, ratio=0, maxstep=7000):
                 else:
                     log(f"{rpath} completed\n",logname)
             if ratio!=0:
-                mean_not_opt=adaptive_opt_cap(grad_strs, search_bonds)
+                mean_not_opt=adaptive_opt_cap(grad_strs,xyzs_strs, search_bonds)
                 print(proj_len/mean_not_opt)
                 if proj_len/mean_not_opt>ratio:
                     not_optimized=True
