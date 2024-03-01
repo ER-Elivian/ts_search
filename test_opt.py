@@ -18,7 +18,7 @@ def print_result(result):
         print(f'{key} \t{"{:9.7f}".format(result[key])} {color_by_value(result[key])}')
         
 
-rpaths=[ "da_test", "ep_test","sn2_test", "et_test", "rad_test"]
+rpaths=[ "da_test", "ep_test","sn2_test", "et_test", "rad_test", "apw_test"]
 result={}
 for rpath in rpaths:
     print("   ")
