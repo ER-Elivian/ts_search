@@ -42,10 +42,10 @@ class optTS:
         
         
         self.change_projections={}
-        self.change_projections["vn_for_change"]=[[self.const_settings["nBonds"]**-0.5 for i in range(self.const_settings["nBonds"])]]#self.make_ort111(self.const_settings["nBonds"])
+        self.change_projections["vn_for_change"]=[np.array([self.const_settings["nBonds"]**-0.5 for i in range(self.const_settings["nBonds"])])]#self.make_ort111(self.const_settings["nBonds"])
         for i in range(self.const_settings["nBonds"]-1):
             self.change_projections["vn_for_change"].append([0 for j in range(self.const_settings["nBonds"])])
-        self.change_projections["reliability"]=[(2 if i>0 else 100) for i in range(self.const_settings["nBonds"])]
+        self.change_projections["reliability"]=[(2 if i>0 else 10) for i in range(self.const_settings["nBonds"])]
         self.change_projections["selected_vector"]=1
         
         self.init_bonds=self.find_reac_type_by_phases__and__measure_init_bonds()
@@ -480,7 +480,7 @@ class optTS:
             self.decrease_rel(self.change_projections["selected_vector"])
             if self.const_settings["nBonds"]==2:
                 self.decrease_rel(self.change_projections["selected_vector"])
-            self.change_projections["selected_vector"] = self.change_projections["selected_vector"]+1 if self.change_projections["selected_vector"]+1<self.const_settings["nBonds"] else 1
+            self.change_projections["selected_vector"] = self.change_projections["selected_vector"]+1 if self.change_projections["selected_vector"]+1<self.const_settings["nBonds"] else 0
             
         cycle_res,bond_jump=self.search_for_cycle()
                 
