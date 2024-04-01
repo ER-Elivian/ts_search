@@ -29,7 +29,7 @@ def color_and_size_by_symb(symb):
         return "blue", 10
     return "magneta", 16
 
-def bond_val(v1, v2):
+def bond_val(v1, v2): #by chemcraft
     if v1>v2:
         v1,v2=v2,v1
     if v1=="C":
@@ -71,11 +71,8 @@ def find_connections(athoms):
 
 def ends_move(a1,a2):
     v=np.subtract(a1[1:],a2[1:])
-    print(v)
     v_len=np.linalg.norm(v)
-    print(v_len)
     v=np.multiply(1/v_len,v)
-    print(np.linalg.norm(v))
     if a1[0]==0:
         mul_a1=0
     else:
@@ -106,7 +103,7 @@ def draw_on_figure(fig,athoms=None, forces=None, connections=None):
             c, s=color_and_size_by_symb(athom[0])
             line_marker = dict(color=c, size=s)
         
-            fig.add_scatter3d(x=xx, y=yy, z=zz, mode='markers',marker=line_marker,name="", text=f"{athom[0]}{i}")
+            fig.add_scatter3d(x=xx, y=yy, z=zz, mode='markers',marker=line_marker,name="", text=f"{athom[0]}{i+1}")
             
     if forces!=None:
         max_force=0
@@ -122,7 +119,7 @@ def draw_on_figure(fig,athoms=None, forces=None, connections=None):
                               line = dict( color = "rgb(84,0,0)",width = 6),
                               hoverinfo="text+name",
                               text=f"{forces[i][0]} {forces[i][1]} {forces[i][2]}",
-                              name=f'f{athoms[i][0]}{i}')
+                              name=f'{athoms[i][0]}{i+1}')
     if type(connections)!=None:
         n_ath=len(athoms)
         for i in range (n_ath):
@@ -137,8 +134,6 @@ def draw_on_figure(fig,athoms=None, forces=None, connections=None):
                                       hoverinfo='skip',
                                       name='')
 
-
-
 initial_cwd = os.getcwd()
 rpath=os.path.join("/media/user/D/MYDOCS/Projects/TS_search_old/visualization")
 athoms, forces=read_grad(rpath)
@@ -147,4 +142,3 @@ fig = go.Figure()
 draw_on_figure(fig,athoms, forces, connects)
 fig.update_layout(width=900, height=800, showlegend=False, scene=dict(aspectmode="data"))
 fig.show()
-#connections=connect(athoms)

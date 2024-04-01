@@ -1,8 +1,8 @@
 import os
 from pyxyz import Confpool
-from TS_find import optTS
+from TS_find_ort import optTS
 def opt_and_compare(rpath):
-    optTS(rpath, "to_opt.xyz",optimized_cap=0.0001, ratio=300, maxstep=400,mode="autostrict")
+    optTS(rpath, "to_opt.xyz",optimized_cap=0.00001, ratio=60, maxstep=1000,mode="autostrict")
     p = Confpool()
     p.include_from_file(os.path.join(rpath,"TS.xyz"))
     p.include_from_file(os.path.join(rpath,"xtbopt.xyz"))
@@ -18,7 +18,7 @@ def print_result(result):
         print(f'{key} \t{"{:9.7f}".format(result[key])} {color_by_value(result[key])}')
         
 
-rpaths=[ "da_test", "ep_test","sn2_test", "et_test", "rad_test", "apw_test"]
+rpaths=["da_test", "ep_test","sn2_test","apw_test"]
 result={}
 for rpath in rpaths:
     print("   ")
