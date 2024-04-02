@@ -1,6 +1,6 @@
 import os
 from pyxyz import Confpool
-from TS_find_ort import optTS
+from TS_find import optTS
 def opt_and_compare(rpath):
     optTS(rpath, "to_opt.xyz",optimized_cap=0.00001, ratio=60, maxstep=1000,mode="autostrict")
     p = Confpool()
