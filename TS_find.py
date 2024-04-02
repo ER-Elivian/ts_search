@@ -1,7 +1,121 @@
 import numpy as np,os,subprocess,datetime,copy
+
+class usingMethod:
+    def __init__(self,method_name, dict_of_pars):
+        self.method_name=method_name
+        self.settings=dict()
+        if self.method_name=="xtb":
+            self.settings["chrg"]=dict_of_pars["chrg"]
+            self.settings["force_constant"]=dict_of_pars["force_constant"]
+            self.settings["nAtoms"]=dict_of_pars["nAtoms"]
+            self.settings["solvent"]=dict_of_pars["solvent"]
+            self.settings["rpath"]=dict_of_pars["rpath"]
+        else:
+            raise ValueError(f"Unknown method: {self.method_name}")
     
+    #generic functions
+    def get_energy(self):
+        if self.method_name=="xtb":
+            return float(self.xyzs_strs[1].split()[1])
+    def read_xyz(self, xyz_name):
+        if self.method_name=="xtb":
+            if xyz_name=="!result":
+                xyz_name="xtbopt.xyz"
+            self.xyzs_strs=self.__read_file(xyz_name)
+
+    def read_grad(self):
+        if self.method_name=="xtb":
+            self.grad_strs=self.__read_file("gradient")
+
+    def extract_AB_dir(self, num_A:int,num_B:int):
+        if self.method_name=="xtb":
+            return self.__extract_AB_dir_xtb(num_A,num_B)
+    def extractGradient(self, num):
+        if self.method_name=="xtb":
+            return self.__extractGradient_xtb(num)
+    
+    def grad(self,xyz_name):
+        if self.method_name=="xtb":
+            if xyz_name=="!result":
+                xyz_name="xtbopt.xyz"
+            self.__grad_xtb(xyz_name)
+
+    def opt_constrain(self,xyz_name:str,constrains:list):
+        '''constrains is list of same lists: [ctype("bond","angle"),[related athoms],value]'''
+        if self.method_name=="xtb":
+            if xyz_name=="!result":
+                xyz_name="xtbopt.xyz"
+            control_strs=[]
+            print(f"constrains: {constrains}")
+            for constrain in constrains:
+                if constrain[0]=="bond":
+                    control_strs.append(f"    distance: {constrain[1][0]}, {constrain[1][1]}, {constrain[2]}\n")
+                elif constrain[0]=="angle":
+                    control_strs.append(f"    angle: {constrain[1][0]}, {constrain[1][1]}, {constrain[1][2]}, {constrain[2]}\n")
+                else:
+                    raise ValueError(f"Unknown constrain type: {constrain[0]}")
+            self.__save_control_xtb(control_strs)
+            self.__opt_xtb(xyz_name)
+    
+    def xmol_xyzs_strs(self):
+        if self.method_name=="xtb":
+            return self.xyzs_strs
+
+    def __read_file(self,file_name:str):
+        file_strs=[]
+        with open(os.path.join(self.settings["rpath"],file_name),"r") as file:
+            line=file.readline()
+            while line!="":
+                file_strs.append(line)
+                line=file.readline()
+        return file_strs
+    #~generic functions
+
+    #xtb
+    def __save_control_xtb(self,control_strs):
+        with open(os.path.join(self.settings["rpath"],"control"),"w+") as control:
+            control.writelines([f'$chrg {self.settings["chrg"]}\n',"$constrain\n"])
+            control.writelines(control_strs)
+            control.writelines([f'    force constant = {self.settings["force_constant"]}\n',"$end\n"])
+    
+    def __opt_xtb(self,xyz_name):
+        with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
+            if self.settings["solvent"]=="vacuum":
+                subprocess.call(["xtb", xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
+            else:
+                subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--opt","--vtight"],stdout=xtbout)
+
+    def __grad_xtb(self,xyz_name):
+        with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
+            if self.settings["solvent"]=="vacuum":
+                subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]),"--grad"],stdout=xtbout)
+            else:
+                subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--grad"],stdout=xtbout)
+    
+    def __extractGradient_xtb(self, num):
+        line_num=num+self.settings["nAtoms"]+1
+        gradline=self.grad_strs[line_num]
+        gradstr_arr=gradline.split()
+        gradarr=[]
+        for i in range(len(gradstr_arr)):
+            gradarr.append(float(gradstr_arr[i]))
+        return np.array(gradarr)
+
+    def __extract_AB_dir_xtb(self, num_A:int,num_B:int):
+        vec_A=self.xyzs_strs[num_A+1].split()[1:]
+        for num,coord in enumerate(vec_A):
+            vec_A[num]=float(coord)
+    
+        vec_B=self.xyzs_strs[num_B+1].split()[1:]
+        for num,coord in enumerate(vec_B):
+            vec_B[num]=float(coord)
+    
+        res=np.subtract(vec_B,vec_A)
+        return res
+    #~xtb
+
 class optTS:
-    def __init__(self,rpath:str, xyz_name:str,optimized_cap:float=0, ratio:float=0, maxstep:int=7000, print_output:bool=True, mode="strict"):
+    def __init__(self,rpath:str, xyz_name:str,optimized_cap:float=0, ratio:float=0,method="xtb", maxstep:int=7000, print_output:bool=True, mode="strict"):
         
         if optimized_cap==0 and ratio==0:
             print("please, enter optimized_cap or (and) ratio")
@@ -28,8 +142,7 @@ class optTS:
         self.const_settings["nBonds"]=len(self.search_bonds)
         if self.const_settings["nBonds"]<3 and self.const_settings["mode"]=="autostrict":
             self.const_settings["mode"]="strict"
-        
-        self.xyzs_strs=[]
+
         self.log_xyz("new") 
         
         #Все длины, над которыми производятся операции - в ангстремах
@@ -40,7 +153,19 @@ class optTS:
         self.xyzs_strs=self.read_file(self.const_settings["xyz_name"])
         self.const_settings["nAtoms"]=len(self.xyzs_strs)-2
         
-        
+        if method=="xtb":
+            dict_to_uM=dict(rpath=self.const_settings["rpath"],
+                            chrg=self.const_settings["chrg"],
+                            force_constant=6,
+                            solvent=self.const_settings["solvent"],
+                            nAtoms=self.const_settings["nAtoms"])
+        else:
+            raise ValueError(f"Unknown method {method}")
+
+        self.Method=usingMethod(method,dict_to_uM)
+        self.Method.read_xyz(self.const_settings["xyz_name"])
+        self.log_xyz() 
+
         self.change_projections={}
         self.change_projections["vn_for_change"]=[np.array([self.const_settings["nBonds"]**-0.5 for i in range(self.const_settings["nBonds"])])]#self.make_ort111(self.const_settings["nBonds"])
         for i in range(self.const_settings["nBonds"]-1):
@@ -91,7 +216,7 @@ class optTS:
     def change_fn(self,length:float, cap:float):
         len_sb=self.const_settings["nBonds"]
         if len_sb>2:
-            return length/((len_sb)**(1+len_sb*0.25))
+            return length/((len_sb)**(1.5))
         len_sign=self.sign(length)
         x=len_sign*length
         change=(x**1.05)/2#(x**(0.1+1.9/(x**0.1+1)))*5
@@ -112,40 +237,19 @@ class optTS:
         self.ifprint(init)
         return init
     #~mathematics
-
-    #xtb
-    def opt(self,xyz_name:str):
-        with open(os.path.join(self.const_settings["rpath"],"xtbout"),"w+") as xtbout:
-            if self.const_settings["solvent"]=="vacuum":
-                subprocess.call(["xtb", xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
-            else:
-                subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.const_settings["solvent"],"--opt","--vtight"],stdout=xtbout)
-    
-    def o_grad(self):
-        with open(os.path.join(self.const_settings["rpath"],"xtbout"),"w+") as xtbout:
-            if self.const_settings["solvent"]=="vacuum":
-                subprocess.call(["xtb", "xtbopt.xyz", "--chrg", str(self.const_settings["chrg"]),"--grad"],stdout=xtbout)
-            else:
-                subprocess.call(["xtb", "xtbopt.xyz", "--chrg", str(self.const_settings["chrg"]), "--alpb", self.const_settings["solvent"],"--grad"],stdout=xtbout)
-    #~xtb   
+ 
     #rw
     def ifprint(self,to_print):
         if self.const_settings["print_output"]:
             print(to_print)
 
-    def save_control(self,f_c:float):
-        with open(os.path.join(self.const_settings["rpath"],"control"),"w+") as control:
-            control.writelines([f'$chrg {self.const_settings["chrg"]}\n',"$constrain\n"])
-            control.writelines(self.control_strs)
-            control.writelines([f"    force constant = {f_c}\n","$end\n"])
-
     def log_xyz(self, mode=None):
         if mode=="new":
-            open_prm_str="w+"
+            with open(os.path.join(self.const_settings["rpath"],"TS_search_log.xyz"),"w+") as log:
+                pass
         else:
-            open_prm_str="a"
-        with open(os.path.join(self.const_settings["rpath"],"TS_search_log.xyz"),open_prm_str) as log:
-            log.writelines(self.xyzs_strs)
+            with open(os.path.join(self.const_settings["rpath"],"TS_search_log.xyz"),"a") as log:
+                log.writelines(self.Method.xmol_xyzs_strs())
     
     @staticmethod
     def log(str:str,logname:str):
@@ -161,27 +265,7 @@ class optTS:
                 line=file.readline()
         return file_strs
     #~rw
-    #vector extract
-    def extract_AB_dir(self, num_A:int,num_B:int):
-        vec_A=self.xyzs_strs[num_A+1].split()[1:]
-        for num,coord in enumerate(vec_A):
-            vec_A[num]=float(coord)
-    
-        vec_B=self.xyzs_strs[num_B+1].split()[1:]
-        for num,coord in enumerate(vec_B):
-            vec_B[num]=float(coord)
-    
-        res=np.subtract(vec_B,vec_A)
-        return res
-    
-    def extractGradient(self,line_num:int):
-        gradline=self.grad_strs[line_num]
-        gradstr_arr=gradline.split()
-        gradarr=[]
-        for i in range(len(gradstr_arr)):
-            gradarr.append(float(gradstr_arr[i]))
-        return np.array(gradarr)
-    #~vector extract
+
     #init fns
     def read_bonds(self):
         self.search_bonds=[]
@@ -203,10 +287,10 @@ class optTS:
         for bond in self.search_bonds:
             phases_vec.append(bond[2])
             if bond[0]<bond[1]:
-                key= f"{bond[0]}, {bond[1]}" 
+                key= (bond[0], bond[1]) 
             else:
-                key= f"{bond[1]}, {bond[0]}"  
-            init_bonds[key]=self.vec_len(self.extract_AB_dir(bond[0],bond[1])) 
+                key= (bond[1], bond[0])  
+            init_bonds[key]=self.vec_len(self.Method.extract_AB_dir(bond[0],bond[1])) 
         for i in range(len(phases_vec)-1):
             if phases_vec[i]*phases_vec[i+1]<0:
                 reac_type=1
@@ -291,7 +375,6 @@ class optTS:
         if cos_v1v2<0.96:
             return False,[]
         
-        
         '''
         DEPTH=15 #рассматриваемая глубина истории
         num_first=max(1,len_ser-DEPTH)
@@ -374,42 +457,38 @@ class optTS:
                 
     def proceed(self):
         while self.not_completed:
-            self.control_strs=[]
             if self.settings["bond_reach_critical_len"]==True:
                 self.lens.clear()
                 self.ifprint("lens is clear")
-                
     
+                self.constrain_list=[]
                 for bond_atoms, bond_value in zip(self.init_bonds.keys(), self.init_bonds.values()):
-                    self.control_strs.append(f"    distance: {bond_atoms}, {bond_value}\n")
+                    self.constrain_list.append(["bond",bond_atoms, bond_value])
                 
-                self.save_control(6)
-                self.opt(self.const_settings["xyz_name"])
+                self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
     
                 self.settings["bond_reach_critical_len"]=False
     
             else:
-                self.xyzs_strs=self.read_file("xtbopt.xyz")#readen
-                self.log_xyz(self.xyzs_strs)
-                self.log(f"{self.xyzs_strs[1].split()[1]}\n",os.path.join(self.const_settings["rpath"],"log_E"))
+                self.Method.read_xyz("!result")
+                
+                #self.log(f"{self.xyzs_strs[1].split()[1]}\n",os.path.join(self.const_settings["rpath"],"log_E"))
         
                 if self.const_settings["nBonds"]>1:
-                    string_curve=f'{self.vec_len(self.extract_AB_dir(self.search_bonds[0][0],self.search_bonds[0][1]))} {self.vec_len(self.extract_AB_dir(self.search_bonds[1][0],self.search_bonds[1][1]))} {self.xyzs_strs[1].split()[1]}\r\n'
+                    string_curve=f'{self.vec_len(self.Method.extract_AB_dir(self.search_bonds[0][0],self.search_bonds[0][1]))} {self.vec_len(self.Method.extract_AB_dir(self.search_bonds[1][0],self.search_bonds[1][1]))} {self.Method.get_energy()}\r\n'
                     self.log(string_curve, "way_log.txt")
-    
-                self.grad_strs=self.read_file("gradient")
-    
+                
+                self.constrain_list=[]
+                self.Method.read_grad()
                 proj_len=self.move_bonds()
-    
                 self.not_completed = not self.check_tresholds_converged(proj_len)
                 
                 if self.settings["step"]>=self.const_settings["maxstep"]:
                     self.ifprint("\033[91mnot optimized but reached maximum number of steps\033[00m") 
                     self.not_completed=False
                      
-                self.save_control(6)
-                self.ifprint("opt geometry with new control") 
-                self.opt("xtbopt.xyz")
+                self.ifprint("opt geometry with new constrains") 
+                self.Method.opt_constrain("!result",self.constrain_list)
     
             if self.not_completed:
                 self.ifprint(f'\nstep {self.settings["step"]}') 
@@ -418,7 +497,7 @@ class optTS:
     
             self.ifprint("gradient calculation")
             
-            self.o_grad()
+            self.Method.grad("!result")
         os.chdir(self.initial_cwd)
 
     def move_bonds(self):
@@ -432,11 +511,11 @@ class optTS:
         for i,bond in enumerate(self.search_bonds):#найдём градиент (желание растянуться) вдоль каждой связи
             num_A=bond[0]
             num_B=bond[1]
-            key=f"{bond[0]}, {bond[1]}"
+            key=(bond[0], bond[1])
     
-            grad_A=self.extractGradient(num_A+self.const_settings["nAtoms"]+1)
-            grad_B=self.extractGradient(num_B+self.const_settings["nAtoms"]+1)
-            AB_dir=self.extract_AB_dir(num_A,num_B)
+            grad_A=self.Method.extractGradient(num_A)
+            grad_B=self.Method.extractGradient(num_B)
+            AB_dir=self.Method.extract_AB_dir(num_A,num_B)
             summ_grad=np.subtract(grad_B,grad_A)
     
             if not key in self.lens.keys():
@@ -461,7 +540,7 @@ class optTS:
             
     
         change_if_less_DoC=10*self.change_projections["signs"][0]*(self.change_fn(mean_change,0.015))
-        if abs(change_if_less_DoC)<0.000001:#предел разрешения control, а вблизи ПС тут получается очень маленькое значение (10^-8)
+        if abs(change_if_less_DoC)<0.000001:#предел разрешения, а вблизи ПС тут получается очень маленькое значение (10^-8)
             change_if_less_DoC=self.sign(change_if_less_DoC)*0.000001
             self.settings["DoC_cutoff"]=div_of_changes
         
@@ -499,13 +578,12 @@ class optTS:
         self.ifprint(f'reliabilites:{self.change_projections["reliability"]}')
         self.ifprint(f'signs:       {self.change_projections["signs"]}')
         
-        
         #~блок того, что надо сделать 1 раз
 
         self.ifprint(f'\033[01m\033[93mbonds:\033[00m')
         
         for i,bond in enumerate(self.search_bonds):
-            key=f"{bond[0]}, {bond[1]}"
+            key=(bond[0], bond[1])
             bond_len=self.lens[key]
             #блок того, что надо сделать для каждой связи
             if cycle_res:#если надо jump
@@ -521,8 +599,8 @@ class optTS:
             #~блок того, что надо сделать для каждой связи
             
             res_bond=bond_len+bond_change
-            self.ifprint(f'\033[93m{key}\033[00m\tchange {"{:14.10f}".format(bond_change)}, res {"{:14.10f}".format(res_bond)}')
-            self.control_strs.append(f"    distance: {key}, {res_bond}\n")
+            self.ifprint(f'\033[93m{key[0]}, {key[1]}\033[00m\tchange {"{:14.10f}".format(bond_change)}, res {"{:14.10f}".format(res_bond)}')
+            self.constrain_list.append(["bond",key, res_bond])
             self.lens[key]=res_bond
     
             if res_bond>MAX_BOND or res_bond<MIN_BOND:
@@ -530,9 +608,9 @@ class optTS:
                 #если в результате поиска ПС связь порвалась или замкнулась, то  результат сбрасывается, а в начальной геометрии соответствующая связь немного (на 0,02) растягивается или укорачивается, чтобы притяжение или отталкивание было меньше
     
                 if bond[0]<bond[1]:
-                    key=f"{bond[0]}, {bond[1]}"
+                    key=(bond[0], bond[1])
                 else:
-                    key=f"{bond[1]}, {bond[0]}"
+                    key=(bond[1], bond[0])
     
                 if res_bond>MAX_BOND:
                     self.init_bonds[key]-=0.1
@@ -564,7 +642,7 @@ class optTS:
         num_forces=0
         for i in range(1,self.const_settings["nAtoms"]+1):
             if i not in search_atoms:
-                vec_force=self.extractGradient(i+self.const_settings["nAtoms"]+1)
+                vec_force=self.Method.extractGradient(i)
                 sum_forces+=self.vec_len(vec_force)
                 num_forces+=1
         return sum_forces/num_forces
@@ -590,5 +668,5 @@ class optTS:
 #------run------#
 if __name__ == "__main__":
     initial_cwd=os.getcwd()
-    path=os.path.join(initial_cwd,"tests","apw_test")
+    path=os.path.join(initial_cwd,"tests","bul_test")
     optTS(path,"to_opt.xyz", ratio=8, optimized_cap=0.00004, print_output=True,mode="strict", maxstep=10e100)
