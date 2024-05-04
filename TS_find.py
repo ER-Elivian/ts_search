@@ -571,7 +571,11 @@ class optTS:
         MIN_BOND=0.8
         MAX_BOND=3.5
         KOEF_ELEM_ANGLE_ACT=1#коэффициент перевода из углового действия [рад] в элементарное [Ангст]
+<<<<<<< HEAD
         KOEF_ELEM_DIHEDRAL_ACT=20
+=======
+        KOEF_ELEM_DIHEDRAL_ACT=5
+>>>>>>> fd5cdc8cc44ee19f986c7a742737aaf4b8d668a6
         MIN_ANG=0.4#[rad]
         RAD2DEG=57.295779513
         sum_changes=0
@@ -644,7 +648,12 @@ class optTS:
 
                 BAr_dir=np.subtract(BA_dir, self.projection(BA_dir, BC_dir))
                 CDr_dir=np.subtract(CD_dir, self.projection(CD_dir, BC_dir))
+<<<<<<< HEAD
 
+=======
+                norm_axis=np.cross(BAr_dir, CDr_dir)
+                
+>>>>>>> fd5cdc8cc44ee19f986c7a742737aaf4b8d668a6
                 BAr_len=np.linalg.norm(BAr_dir)
                 CDr_len=np.linalg.norm(CDr_dir)
                 
@@ -652,9 +661,15 @@ class optTS:
                 force_D=np.subtract(self.projection(grad_D, BC_dir), grad_D)
                 m_F_A=np.cross(BAr_dir,force_A)
                 m_F_D=np.cross(CDr_dir,force_D)
+<<<<<<< HEAD
                 sum_m=np.subtract(np.multiply(1/CDr_len,m_F_D), np.multiply(1/BAr_len,m_F_A))
                 sum_m_len=np.linalg.norm(sum_m)
                 s_m_sign=self.vsign(sum_m, BC_dir)
+=======
+                sum_m=np.subtract(np.multiply(1/BAr_len,m_F_A), np.multiply(1/CDr_len,m_F_D))
+                sum_m_len=np.linalg.norm(sum_m)
+                s_m_sign=self.vsign(sum_m, norm_axis)
+>>>>>>> fd5cdc8cc44ee19f986c7a742737aaf4b8d668a6
                 changes.append(s_m_sign*sum_m_len*KOEF_ELEM_DIHEDRAL_ACT)
                 max_change=max(changes[i], max_change)
                 min_change=min(changes[i], min_change)
@@ -795,5 +810,9 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
+<<<<<<< HEAD
     optTS(xyz_path=os.path.join("tests","d_a_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
+=======
+    optTS(xyz_path=os.path.join("tests","p_d_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
+>>>>>>> fd5cdc8cc44ee19f986c7a742737aaf4b8d668a6
     
