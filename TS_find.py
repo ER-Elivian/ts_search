@@ -361,7 +361,7 @@ class optTS:
         return abs(np.dot(v1, v2)/(np.linalg.norm(v1)*np.linalg.norm(v2)))
     
     def change_fn(self,length:float, cap:float):    
-        return min((length+10*length**2+1000*length**3)*2, cap)
+        return min((length/self.const_settings["nDoFs"]+10*length**2+1000*length**3)*2, cap)
         
     
     def produce_new_vector(self,changes):#процесс Грамма-Шмидта
@@ -570,8 +570,8 @@ class optTS:
     def move_DoFs(self):
         MIN_BOND=0.8
         MAX_BOND=3.5
-        KOEF_ELEM_ANGLE_ACT=1#коэффициент перевода из углового действия [рад] в элементарное [Ангст]
-        KOEF_ELEM_DIHEDRAL_ACT=20
+        KOEF_ELEM_ANGLE_ACT=8#коэффициент перевода из углового действия [рад] в элементарное [Ангст]
+        KOEF_ELEM_DIHEDRAL_ACT=15
         MIN_ANG=0.4#[rad]
         RAD2DEG=57.295779513
         sum_changes=0
@@ -758,7 +758,7 @@ class optTS:
     #~main loop fns
 #------run------#
 if __name__ == "__main__":
-    '''
+    
     import argparse
     parser = argparse.ArgumentParser(description='Method for finding TS by targeted bonds. You only need store bonds_to_search and <name>.xyz files to directory/ and then call that programm', epilog="When using ORCA, it's need to export its folder to PATH, LD_LIBRARY_PATH. If using multiprocessoring (openmpi) it's need to export its folders lib/ to LD_LIBRARY_PATH and bin/ to PATH")
     parser.add_argument("xyz_path", type=str, help="xmol .xyz file with structure. File can be in any directory")
@@ -794,5 +794,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","d_a_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
-    
+    optTS(xyz_path=os.path.join("tests","bul2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
+    '''
