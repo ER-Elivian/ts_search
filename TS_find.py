@@ -142,9 +142,9 @@ class usingMethod:
     def __opt_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", xyz_name, "-I", "control","--acc","0.005","--opt"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--opt","--vtight"],stdout=xtbout)
+                p=subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc","0.005","--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
@@ -248,7 +248,7 @@ class usingMethod:
     #~orca
     
 class optTS:
-    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0,programm=dict(name="xtb"), maxstep:int=7000, print_output:bool=True, mode="strict"):
+    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), maxstep:int=7000, print_output:bool=True):
         cwd=os.getcwd()
         
         rpath=os.path.join(cwd, os.path.dirname(xyz_path))
@@ -258,8 +258,8 @@ class optTS:
         if threshold_force==0 and threshold_rel==0:
             print("please, enter threshold_force or (and) threshold_rel")
             return
-        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep), mode=mode)
-        self.settings=dict(step=0,prev_dc=100,bond_reach_critical_len=True)
+        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep))
+        self.settings=dict(step=0,prev_dc=100,bond_reach_critical_len=True, mirror_coef=mirror_coef)
 
         self.log("",os.path.join(self.const_settings["rpath"],"log_doc"))
         self.log("",os.path.join(self.const_settings["rpath"],"log_E"))
@@ -278,8 +278,6 @@ class optTS:
     
         self.read_DoFs()
         self.const_settings["nDoFs"]=len(self.search_DoFs)
-        if self.const_settings["nDoFs"]<3 and self.const_settings["mode"]=="autostrict":
-            self.const_settings["mode"]="strict"
 
         self.log_xyz("new") 
         
@@ -418,19 +416,19 @@ class optTS:
                     line_split=line.split()
                     if line_split[0]=='b':
                         if int(line_split[1])<int(line_split[2]):
-                            self.search_DoFs.append(["b", int(line_split[1]), int(line_split[2]), int(line_split[3])])
+                            self.search_DoFs.append(["b", int(line_split[1]), int(line_split[2]), float(line_split[3])])
                         else:
-                            self.search_DoFs.append(["b", int(line_split[2]), int(line_split[1]), int(line_split[3])])
+                            self.search_DoFs.append(["b", int(line_split[2]), int(line_split[1]), float(line_split[3])])
                     elif line_split[0]=='a':
                         if int(line_split[1])<int(line_split[3]):
-                            self.search_DoFs.append(["a", int(line_split[1]), int(line_split[2]), int(line_split[3]), int(line_split[4])])
+                            self.search_DoFs.append(["a", int(line_split[1]), int(line_split[2]), int(line_split[3]), float(line_split[4])])
                         else:
-                            self.search_DoFs.append(["a", int(line_split[3]), int(line_split[2]), int(line_split[1]), int(line_split[4])])
+                            self.search_DoFs.append(["a", int(line_split[3]), int(line_split[2]), int(line_split[1]), float(line_split[4])])
                     elif line_split[0]=='d':
                         if int(line_split[1])<int(line_split[4]):
-                            self.search_DoFs.append(["d", int(line_split[1]), int(line_split[2]), int(line_split[3]), int(line_split[4]), int(line_split[5])])
+                            self.search_DoFs.append(["d", int(line_split[1]), int(line_split[2]), int(line_split[3]), int(line_split[4]), float(line_split[5])])
                         else:
-                            self.search_DoFs.append(["d", int(line_split[4]), int(line_split[3]), int(line_split[2]), int(line_split[1]), int(line_split[5])])
+                            self.search_DoFs.append(["d", int(line_split[4]), int(line_split[3]), int(line_split[2]), int(line_split[1]), float(line_split[5])])
                 
                 line=bonds.readline()
     
@@ -477,30 +475,6 @@ class optTS:
         self.ifprint(init_DoFs)
         return init_DoFs
     #~init fns
-
-    #reliability
-    def increase_rel(self,vec_num:int):#увеличиваем уверенность в том, что это правильное изменение по знаку
-        REL_MAX=60
-        REL_INIT=2
-        if self.change_projections["reliability"][vec_num]<=1:
-            self.change_projections["reliability"][vec_num]=REL_INIT
-        else:
-            self.change_projections["reliability"][vec_num]+=1
-            if self.change_projections["reliability"][vec_num]>REL_MAX:
-                self.change_projections["reliability"][vec_num]=REL_MAX
-    def decrease_rel(self,vec_num:int):#уменьшаем уверенность в том, что это правильное изменение по знаку
-        if self.change_projections["reliability"][vec_num]<=1:
-            if self.const_settings["mode"]!="strict":
-                self.change_projections["signs"][vec_num]=-self.change_projections["signs"][vec_num]
-                self.increase_rel(vec_num)
-        else:
-            if self.change_projections["reliability"][vec_num] >= 12:
-                self.change_projections["reliability"][vec_num]-=2
-            else:    
-                self.change_projections["reliability"][vec_num]-=1
-            if self.const_settings["nDoFs"]==1:
-                self.change_projections["reliability"][vec_num]-=1
-    #~reliability
         
     #main loop fns
     def reset(self):
@@ -662,7 +636,7 @@ class optTS:
     
         self.ifprint(f'div of forces: \033[01mcur\033[00m {"{:.8f}".format(div_of_changes)}    \033[01mprev\033[00m {"{:.8f}".format(self.settings["prev_dc"])} (\033{"[92mless" if div_of_changes<self.settings["prev_dc"] else "[091mhigher"}\033[00m)') 
         
-        inv_chang_to_TS=np.subtract(changes,np.multiply(2,self.projection(changes,self.phases_vec)))
+        inv_chang_to_TS=np.subtract(changes,np.multiply(self.settings["mirror_coef"]+1,self.projection(changes,self.phases_vec)))
         len_ic=np.linalg.norm(inv_chang_to_TS)
         inv_chang_to_TS=np.multiply(self.change_fn(len_ic,0.03)/len_ic,inv_chang_to_TS)
 
@@ -758,13 +732,13 @@ class optTS:
     #~main loop fns
 #------run------#
 if __name__ == "__main__":
-    
+    '''
     import argparse
     parser = argparse.ArgumentParser(description='Method for finding TS by targeted bonds. You only need store bonds_to_search and <name>.xyz files to directory/ and then call that programm', epilog="When using ORCA, it's need to export its folder to PATH, LD_LIBRARY_PATH. If using multiprocessoring (openmpi) it's need to export its folders lib/ to LD_LIBRARY_PATH and bin/ to PATH")
     parser.add_argument("xyz_path", type=str, help="xmol .xyz file with structure. File can be in any directory")
     parser.add_argument("-tf", "--treshold-force", type=float, default=0.00004,dest="threshold_force", help="that trashold is converged when max force on optimizing bonds less than its value. Default: 0.00004")
-    parser.add_argument("-tr", "--treshold-threshold_rel", type=float, default=8.,dest="threshold_threshold_rel", help="that trashold is converged when max force on optimizing bonds divided by mean force on unconstrained bonds less then its value. Default: 8")
-    parser.add_argument("--mode", type=str, default="strict", help="mode: if \"strict\", disables flip a sign on vectors. \"autostrict\" is same as \"strict\", but only on reactions that contain less then 4 bonds. If other: always enable flip a sign on vectors. Usually \"strict\" is better than others. Default: \"strict\"")
+    parser.add_argument("-tr", "--treshold-rel", type=float, default=8.,dest="threshold_rel", help="that trashold is converged when max force on optimizing bonds divided by mean force on unconstrained bonds less then its value. Default: 8")
+    parser.add_argument("-mc", "--mirror-coef", type=float, default=1.,dest="mirror_coef", help="The projection of the force at reflection of the longitudinal component relative to the phase vector is multiplied by this value. A decrease leads to a decrease in velocity, while an increase can cause oscillations near the transition state. Default: 1")
     parser.add_argument("--print",const=True, default=False,action='store_const', help="print output")
     parser.add_argument("-s", "--steps", type=int, default=2000, help="maximum number of steps that allowed to optimize TS. Default: 2000")
     parser.add_argument("-p", "--programm", default="xtb",help="programm that used for gradient calculation and constraint optimization. \"xtb\" or \"orca\". Default: \"xtb\"")
@@ -781,10 +755,10 @@ if __name__ == "__main__":
         exit(1)
     optTS(
           args.xyz_path, 
-          threshold_rel=args.threshold_threshold_rel, 
+          threshold_rel=args.threshold_rel, 
           threshold_force=args.threshold_force, 
+          mirror_coef=1
           print_output=args.print,
-          mode=args.mode, 
           maxstep=args.steps, 
           programm=dict(name=args.programm, 
                         method_str=args.method_str,
@@ -794,5 +768,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","bul2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
-    '''
+    optTS(xyz_path=os.path.join("tests","NC_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
+    

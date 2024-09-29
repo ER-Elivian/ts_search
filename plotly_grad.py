@@ -135,7 +135,7 @@ def draw_on_figure(fig,athoms=None, forces=None, connections=None):
                                       name='')
 
 initial_cwd = os.getcwd()
-rpath=os.path.join("/media/user/D/MYDOCS/Projects/TS_search_old/visualization")
+rpath=os.path.join("/media/user/D/MYDOCS/Projects/TS_search/tests/d_a_test")
 athoms, forces=read_grad(rpath)
 connects=find_connections(athoms)
 fig = go.Figure()
