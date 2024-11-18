@@ -5,6 +5,7 @@ def mirror_fn(grad,#list 3*N, gradient
 
     import numpy as np
     from angle_3d_rev import find_vectors as f_v_a
+    from dihedral_3d_rev import find_vectors as f_v_d
     m_grad=np.array(grad)
     nAthoms=len(xyzs)
     
@@ -26,6 +27,13 @@ def mirror_fn(grad,#list 3*N, gradient
             mirror_vec[dof[1]-1]+=dof[4]*vectors[0]
             mirror_vec[dof[2]-1]+=dof[4]*vectors[1]
             mirror_vec[dof[3]-1]+=dof[4]*vectors[2]
+
+        if dof[0]=='d':
+            vectors=f_v_d([xyzs[dof[1]-1],xyzs[dof[2]-1],xyzs[dof[3]-1],xyzs[dof[4]-1]])
+            mirror_vec[dof[1]-1]+=dof[4]*vectors[0]
+            mirror_vec[dof[2]-1]+=dof[4]*vectors[1]
+            mirror_vec[dof[3]-1]+=dof[4]*vectors[2]
+            mirror_vec[dof[4]-1]+=dof[4]*vectors[3]
 
 
 

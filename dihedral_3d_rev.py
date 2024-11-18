@@ -20,8 +20,14 @@ def dihedral_derivative_vector(dihedral,vector):
     v_all=np.concatenate(v)
     v_len=np.linalg.norm(v_all)
     v_der=np.multiply(derivative_len/v_len,v)
-    #добавить что-то про одолистность вблизи -pi и pi 
-    return (dihedral_val(np.subtract(d,v_der)) - dihedral_val(np.add(d,v_der)))/(2*derivative_len)
+    
+    der_top=dihedral_val(np.subtract(d,v_der)) - dihedral_val(np.add(d,v_der))#что-то про одолистность вблизи -pi и pi, чтобы производная бралась корректно
+    if der_top > 3.14:
+        return (der_top - np.pi)/(2*derivative_len)
+    if der_top < -3.14:
+        return (der_top + np.pi)/(2*derivative_len)
+    return (der_top)/(2*derivative_len)
+    
 
 def find_vectors(dihedral):
     d=np.array(dihedral)
