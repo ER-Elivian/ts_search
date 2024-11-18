@@ -43,8 +43,8 @@ def find_vectors(angle):
     deriv_1=angle_derivative_vector(a,[v0, v_ob,v0])
     deriv_2=angle_derivative_vector(a,[v0,v0,v_c_n])
     v_deriv_0=np.multiply(deriv_0/np.linalg.norm(v_a_n),v_a_n)
-    v_deriv_1=np.multiply(deriv_1/np.linalg.norm(v_a_n),v_ob)
-    v_deriv_2=np.multiply(deriv_2/np.linalg.norm(v_a_n),v_c_n)
+    v_deriv_1=np.multiply(deriv_1/np.linalg.norm(v_ob),v_ob)
+    v_deriv_2=np.multiply(deriv_2/np.linalg.norm(v_c_n),v_c_n)
 
     return v_deriv_0,v_deriv_1,v_deriv_2
 
