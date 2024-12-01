@@ -549,6 +549,7 @@ class optTS:
                         const_type="angle"
                     elif len(DoF_atoms)==4:
                         const_type="dihedral"                    
+
                     self.constrain_list.append([const_type,DoF_atoms, DoF_value])
 
                 self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
@@ -917,5 +918,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","sn2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
+    optTS(xyz_path=os.path.join("tests","bul_test1", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
     
