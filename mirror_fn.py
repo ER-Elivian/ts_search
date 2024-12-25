@@ -46,7 +46,7 @@ def mirror_fn(grad,#list 3*N, gradient
     mul_res=np.sum(mirror_vec*m_grad)
     sqr_res=np.sum(mirror_vec*mirror_vec)
     
-    mirror_grad_cos=min(0.7,abs(mul_res/(sqr_res*np.sum(m_grad*m_grad))**0.5))
+    mirror_grad_cos=min(0.4,abs(mul_res/(sqr_res*np.sum(m_grad*m_grad))**0.5))
     print(abs(mul_res/(sqr_res*np.sum(m_grad*m_grad))**0.5))
     print (f"mgcos {mirror_grad_cos}")
     m_grad=np.subtract(m_grad,(1+mirror_grad_cos)*np.multiply(mul_res/sqr_res,mirror_vec))

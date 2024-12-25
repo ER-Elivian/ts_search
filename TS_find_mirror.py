@@ -428,11 +428,11 @@ class optTS:
 
     def log_xyz(self, mode=None):
         if mode=="new":
-            with open(os.path.join(self.const_settings["rpath"],"TS_search_log.xyz"),"w+") as log:
+            with open(os.path.join(self.const_settings["rpath"],"TS_search_m_log.xyz"),"w+") as log:
                 pass
         else:
-            with open(os.path.join(self.const_settings["rpath"],"TS_search_log.xyz"),"a") as file:
-                print(os.path.join(self.const_settings["rpath"],"TS_search_log.xyz"))
+            with open(os.path.join(self.const_settings["rpath"],"TS_search_m_log.xyz"),"a") as file:
+                print(os.path.join(self.const_settings["rpath"],"TS_search_m_log.xyz"))
                 file.writelines(self.Method.xmol_xyzs_strs())
     
     @staticmethod
@@ -599,6 +599,7 @@ class optTS:
             atoms.append(linesplit[0])
             xyzs.append([float(linesplit[1]), float(linesplit[2]), float(linesplit[3])])
         return atoms, xyzs
+    
     def get_grad(self):
         grad=[]
         maxgrad=0
@@ -607,37 +608,42 @@ class optTS:
             maxgrad=max(maxgrad,np.linalg.norm(grad[i]))
         return grad, maxgrad
     
-    def apply_grad(self,nlast=1,base=0.5):
-        if not "last_grad" in self.settings.keys():
-            self.settings["last_grad"]=[self.grad]
-        if len(self.settings["last_grad"])>=nlast:
-            self.settings["last_grad"]=self.settings["last_grad"][1:]
-            self.settings["last_grad"].append(self.grad)
-        else:
-            self.settings["last_grad"].append(self.grad)
-            nlast=len(self.settings["last_grad"])
+    def alter_grad(self):
+        maxgrad=0
+        mingrad=1e200
+        rmg=0
+        for i in range(self.const_settings["nAtoms"]):
+            g_norm=np.linalg.norm(self.grad[i])
+            rmg+=g_norm*g_norm
+            maxgrad=max(maxgrad,g_norm)
+            mingrad=min(mingrad,g_norm)
+        rmg=(rmg**0.5)/self.const_settings["nAtoms"]
 
-        pows=[1]
-        for i in range(nlast):
-            pows.append(pows[i]*base)
-        sumpows=np.sum(pows)
-        np.multiply(1/sumpows,pows)
+        strange_constant=1-(mingrad/maxgrad)**0.1#Эта величина 0..1. Чтобы вначале, когда mingrad/maxgrad большой - все атомы шевелились примерно одинаково быстро, а потом, когда он уменьшается - с той скоростью, с которой должны
+        strange_constant=strange_constant**2#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
+        #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magic
+        print(f"strangeC {strange_constant}")
+        for i in range(self.const_settings["nAtoms"]):
+            g_norm=np.linalg.norm(self.grad[i])
+            self.grad[i]=np.multiply((maxgrad/g_norm)**(strange_constant),self.grad[i])#Вот здесь при большом (около 1) strange_constant все едут примерно со скоростью max_grad (важно по сути только общее направление движения частей системы), а когда структура уже близка к стационарной точке (Strange_constant~=0) атомы двигаются так, как должны по градиенту
+
+
+    def apply_grad(self):
+        
         for i in range(self.const_settings["nAtoms"]):
             for j in range(3):
-                for k in range(nlast):
-                    self.xyzs[i][j]-=self.settings["last_grad"][nlast-k-1][i][j]*pows[k]*self.coef_grad
+                self.xyzs[i][j]-=self.grad[i][j]*self.coef_grad
     
     def update_xyzs_strs(self):
         self.Method.xyzs_strs=self.Method.xyzs_strs[:2]
         for i in range(self.const_settings["nAtoms"]):
             self.Method.xyzs_strs.append(f"{self.atoms[i]} {float(self.xyzs[i][0])} {float(self.xyzs[i][1])} {float(self.xyzs[i][2])}\n")
 
-
-
     def mirror(self):
         self.grad=mirror_fn(self.grad,self.xyzs,self.search_DoFs)
 
     def move_DoFs(self):
+        TRUST_RAD=0.01
         #if self.Optimizer==0:
         #    self.Optimizer=bfgs(self.xyzs)
         
@@ -678,17 +684,21 @@ class optTS:
 
         self.xyzs=self.old_xyzs
         self.grad=np.multiply(0.5,self.old_grad+self.grad)'''
+        rgrad=copy.deepcopy(self.grad)
+        self.alter_grad()
         self.apply_grad()
         self.update_xyzs_strs()
-
+        self.grad=rgrad
         
         self.settings["step"]+=1
-        if maxgrad<self.prev_maxgrad and maxgrad > self.prev_maxgrad-0.0001:
+        if maxgrad<self.prev_maxgrad:
             self.coef_grad*=1.01
         elif maxgrad>self.prev_maxgrad:
             self.coef_grad*=0.9
             if self.coef_grad<0.4:
                 self.coef_grad=0.4
+        if(maxgrad*self.coef_grad>TRUST_RAD):
+            self.coef_grad=TRUST_RAD/maxgrad
         print(self.coef_grad)
         self.prev_maxgrad=maxgrad
         return maxgrad
@@ -919,5 +929,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
+    optTS(xyz_path=os.path.join("tests","fullerene3_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
     
