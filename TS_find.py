@@ -1,3 +1,4 @@
+
 import numpy as np,os,subprocess,datetime,copy
 from pathlib import Path
 class usingMethod:
@@ -72,7 +73,7 @@ class usingMethod:
         u2pu3=np.cross(u2,u3)
         arg1=np.matmul(u2,np.cross(u1pu2,u2pu3).T)
         arg2=np.linalg.norm(u2)*np.matmul(u1pu2,u2pu3.T)
-        return np.arctan2(arg1, arg2)
+        return -np.arctan2(arg1, arg2)
         
         
     def extractGradient(self, num):
@@ -322,7 +323,6 @@ class optTS:
         self.change_projections["selected_vector"]=1
         
         self.init_DoFs=self.find_reac_type_by_phases__and__measure_init_DoFs()
-
         self.init_change_projections=copy.deepcopy(self.change_projections)
         
 
@@ -453,6 +453,7 @@ class optTS:
                 key = (DoF[1], DoF[2], DoF[3], DoF[4])   
                 init_DoFs[key]=self.Method.d_4_ath(DoF[1], DoF[2], DoF[3], DoF[4])*RAD2DEG
 
+        print(init_DoFs)
 
         for i in range(len(phases_vec)-1):
             if phases_vec[i]*phases_vec[i+1]<0:
@@ -522,7 +523,7 @@ class optTS:
                     elif len(DoF_atoms)==3:
                         const_type="angle"
                     elif len(DoF_atoms)==4:
-                        const_type="dihedral"                    
+                        const_type="dihedral"               
                     self.constrain_list.append([const_type,DoF_atoms, DoF_value])
 
                 self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
@@ -665,7 +666,6 @@ class optTS:
         inv_chang_to_TS=np.subtract(changes,np.multiply(2,self.projection(changes,self.phases_vec)))
         len_ic=np.linalg.norm(inv_chang_to_TS)
         inv_chang_to_TS=np.multiply(self.change_fn(len_ic,0.03)/len_ic,inv_chang_to_TS)
-
         for i,DoF in enumerate(self.search_DoFs):
             if DoF[0]=="b":
                 key=(DoF[1], DoF[2])
@@ -736,7 +736,7 @@ class optTS:
                 vec_force=self.Method.extractGradient(i)
                 sum_forces+=self.vec_len(vec_force)
                 num_forces+=1
-        return sum_forces/num_forces
+        return sum_forces/num_forces if num_forces>0 else 0
     
     def check_tresholds_converged(self,proj_len:float):
         trashold_template=lambda name,cur,target,conv:f'{name} trashold {"{:15.7f}".format(cur)} of {"{:15.7f}".format(target)}: \033{"[92m" if conv else "[91mnot "}converged\033[00m'
@@ -758,7 +758,7 @@ class optTS:
     #~main loop fns
 #------run------#
 if __name__ == "__main__":
-    
+    '''
     import argparse
     parser = argparse.ArgumentParser(description='Method for finding TS by targeted bonds. You only need store bonds_to_search and <name>.xyz files to directory/ and then call that programm', epilog="When using ORCA, it's need to export its folder to PATH, LD_LIBRARY_PATH. If using multiprocessoring (openmpi) it's need to export its folders lib/ to LD_LIBRARY_PATH and bin/ to PATH")
     parser.add_argument("xyz_path", type=str, help="xmol .xyz file with structure. File can be in any directory")
@@ -794,5 +794,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","bul2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
-    '''
+    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
+    

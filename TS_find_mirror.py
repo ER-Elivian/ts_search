@@ -1,3 +1,4 @@
+
 import numpy as np,os,subprocess,datetime,copy
 from pathlib import Path
 from mirror_fn import mirror_fn
@@ -539,7 +540,7 @@ class optTS:
                 self.prev_xyzs=None
 
                 self.prev_maxgrad=100000
-                self.coef_grad=0.3
+                self.coef_grad=0.35
 
                 self.constrain_list=[]
                 for DoF_atoms, DoF_value in zip(self.init_DoFs.keys(), self.init_DoFs.values()):
@@ -549,6 +550,7 @@ class optTS:
                         const_type="angle"
                     elif len(DoF_atoms)==4:
                         const_type="dihedral"                    
+
                     self.constrain_list.append([const_type,DoF_atoms, DoF_value])
 
                 self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
@@ -646,7 +648,7 @@ class optTS:
             if type(self.prev_xyzs)== type(None):
                 self.prev_xyzs=self.xyzs
             pxyzs=self.xyzs
-            yk=np.add(self.xyzs, (self.settings["step"]-1.)/(1.5*self.settings["step"]+2.)*(np.subtract(self.xyzs, self.prev_xyzs))) #accelerated gradient descent
+            yk=np.add(self.xyzs, (self.settings["step"]-1.)/(1.6*self.settings["step"]+2.)*(np.subtract(self.xyzs, self.prev_xyzs))) #accelerated gradient descent
             self.prev_xyzs=pxyzs
             self.xyzs=yk
             
@@ -685,8 +687,8 @@ class optTS:
             self.coef_grad*=1.01
         elif maxgrad>self.prev_maxgrad:
             self.coef_grad*=0.9
-            if self.coef_grad<0.2:
-                self.coef_grad=0.2
+            if self.coef_grad<0.4:
+                self.coef_grad=0.4
         print(self.coef_grad)
         self.prev_maxgrad=maxgrad
         return maxgrad
@@ -917,5 +919,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","HATNA_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
+    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
     
