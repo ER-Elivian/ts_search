@@ -621,7 +621,7 @@ class optTS:
 
         strange_constant=1-(mingrad/maxgrad)**0.1#Эта величина 0..1. Чтобы вначале, когда mingrad/maxgrad большой - все атомы шевелились примерно одинаково быстро, а потом, когда он уменьшается - с той скоростью, с которой должны
         strange_constant=strange_constant**2#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
-        #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magic
+        #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magick
         print(f"strangeC {strange_constant}")
         for i in range(self.const_settings["nAtoms"]):
             g_norm=np.linalg.norm(self.grad[i])
