@@ -294,7 +294,7 @@ class bfgs:
 
         
 class optTS:
-    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), maxstep:int=7000, print_output:bool=True):
+    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), maxstep:int=7000, do_preopt=True, print_output:bool=True):
         cwd=os.getcwd()
         
         rpath=os.path.join(cwd, os.path.dirname(xyz_path))
@@ -304,7 +304,7 @@ class optTS:
         if threshold_force==0 and threshold_rel==0:
             print("please, enter threshold_force or (and) threshold_rel")
             return
-        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep))
+        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep), do_preopt=do_preopt)
         self.settings=dict(step=0,prev_dc=100,bond_reach_critical_len=True, mirror_coef=mirror_coef)
 
         self.log("",os.path.join(self.const_settings["rpath"],"log_doc"))
@@ -542,19 +542,20 @@ class optTS:
                 self.prev_maxgrad=100000
                 self.coef_grad=0.35
 
-                self.constrain_list=[]
-                for DoF_atoms, DoF_value in zip(self.init_DoFs.keys(), self.init_DoFs.values()):
-                    if len(DoF_atoms)==2:
-                        const_type="bond"
-                    elif len(DoF_atoms)==3:
-                        const_type="angle"
-                    elif len(DoF_atoms)==4:
-                        const_type="dihedral"                    
+                if self.const_settings["do_preopt"]:
+                    self.constrain_list=[]
+                    for DoF_atoms, DoF_value in zip(self.init_DoFs.keys(), self.init_DoFs.values()):
+                        if len(DoF_atoms)==2:
+                            const_type="bond"
+                        elif len(DoF_atoms)==3:
+                            const_type="angle"
+                        elif len(DoF_atoms)==4:
+                            const_type="dihedral"                    
 
-                    self.constrain_list.append([const_type,DoF_atoms, DoF_value])
-
-                self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
-                self.Method.read_xyz("!result")
+                        self.constrain_list.append([const_type,DoF_atoms, DoF_value])
+                    self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
+                    self.Method.read_xyz("!result")
+                
                 self.atoms, self.xyzs=self.get_xyzs()
                 self.log_xyz()
                 self.Method.grad("!result")
@@ -929,5 +930,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","fullerene3_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6))
+    optTS(xyz_path=os.path.join("tests","sn2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6),do_preopt=False)
     
