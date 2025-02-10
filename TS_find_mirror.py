@@ -13,6 +13,7 @@ class usingMethod:
             self.settings["nAtoms"]=dict_of_pars["nAtoms"]
             self.settings["solvent"]=dict_of_pars["solvent"]
             self.settings["rpath"]=dict_of_pars["rpath"]
+            self.settings["acc"]=dict_of_pars["acc"]
         elif self.programm_name=="orca":
             self.settings["method_str"]=dict_of_pars["method_str"]#i.e. "B3LYP def2-SVP"
             self.settings["memory"]=dict_of_pars["memory"]
@@ -24,7 +25,7 @@ class usingMethod:
             self.ORCA_PATH=dict_of_pars["ORCA_PATH"]
         else:
             raise ValueError(f"Unknown method: {self.programm_name}")
-    
+
     #generic functions
     def get_energy(self):
         if self.programm_name=="xtb":
@@ -146,18 +147,18 @@ class usingMethod:
     def __opt_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--acc","0.005","--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", xyz_name, "-I", "control","--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc","0.005","--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]),"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
@@ -251,50 +252,9 @@ class usingMethod:
 
     #~orca
 
-class bfgs:
-    def __init__(self, initgeom):
-        self.nAtoms=len(initgeom)
-        self.I=np.eye(self.nAtoms*3)
-        self.Hess=self.I
-        self.geom=np.concatenate(initgeom)
-        self.prevgrad=np.zeros(self.nAtoms*3)
-        self.prev_sgrad=np.zeros(self.nAtoms*3)
-    def update(self,grad,alpha):
-        sgrad=1.8897261259077824*np.concatenate(grad)
-        
-        p=-np.dot(self.Hess,sgrad)
-        print(self.Hess)
-
-        p_len=np.linalg.norm(p)
-        alpha=0.2*(1 if p_len<1 else 1/p_len) #we can't do line search, alpha is between 0 and 1, proably it'll work
-        #print(p)
-        sk = alpha * p
-
-        geom_p = self.geom + sk
-        
-        yk = sgrad - self.prev_sgrad
-
-        ro = 1.0 / (np.matmul(yk, sk))
-        print(ro)
-        A1 = self.I - sk[:, np.newaxis] * yk[np.newaxis, :] * ro
-        A2 = self.I - yk[:, np.newaxis] * sk[np.newaxis, :] * ro
-        self.Hess = np.dot(A1, np.dot(self.Hess, A2)) + (ro * sk[:, np.newaxis] * sk[np.newaxis, :])
-        #A1 = self.I - ro * np.outer(sk, yk)
-        #A2 = self.I - ro * np.outer(yk, sk)
-
-        #self.Hess = np.matmul(A1, np.matmul(self.Hess, A2)) + (ro * np.outer(sk, sk))
-        #v=np.matmul(self.Hess,sk.T)
-        #self.Hess = self.Hess + np.outer(yk, yk)*ro - 1/np.matmul(np.matmul(sk,self.Hess),sk.T)*np.outer(v,v)
-        self.prev_sgrad=sgrad
-        self.geom=geom_p
-
-    def get_xyzs(self):
-        return self.geom.reshape((self.nAtoms,3))
-
-
         
 class optTS:
-    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), maxstep:int=7000, do_preopt=True, print_output:bool=True):
+    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), maxstep:int=7000, do_preopt=True,step_along=0, print_output:bool=True):
         cwd=os.getcwd()
         
         rpath=os.path.join(cwd, os.path.dirname(xyz_path))
@@ -304,7 +264,7 @@ class optTS:
         if threshold_force==0 and threshold_rel==0:
             print("please, enter threshold_force or (and) threshold_rel")
             return
-        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep), do_preopt=do_preopt)
+        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep), do_preopt=do_preopt,step_along=step_along)
         self.settings=dict(step=0,prev_dc=100,bond_reach_critical_len=True, mirror_coef=mirror_coef)
 
         self.log("",os.path.join(self.const_settings["rpath"],"log_doc"))
@@ -339,6 +299,7 @@ class optTS:
             dict_to_uM=dict(rpath=self.const_settings["rpath"],
                             chrg=self.const_settings["chrg"],
                             force_constant=programm["force_constant"],
+                            acc=programm["acc"],
                             solvent=self.const_settings["solvent"],
                             nAtoms=self.const_settings["nAtoms"])
         elif programm["name"]=="orca":
@@ -520,6 +481,17 @@ class optTS:
         self.ifprint(self.phases_vec)
         self.ifprint(init_DoFs)
         return init_DoFs
+    
+    def move_along(self,DoF_value,DoF_type,i):
+        print((DoF_value,i,self.phases_vec))
+        DoF_value*=1+self.const_settings["step_along"]*self.phases_vec[i]
+        print(DoF_value)
+        if DoF_type=="angle":
+            DoF_value=min(DoF_value,179.9)
+        elif DoF_type=="dihedral":
+            DoF_value=min(DoF_value,179.9)
+            DoF_value=max(DoF_value,-179.9)
+        return DoF_value
     #~init fns
         
     #main loop fns
@@ -544,7 +516,7 @@ class optTS:
 
                 if self.const_settings["do_preopt"]:
                     self.constrain_list=[]
-                    for DoF_atoms, DoF_value in zip(self.init_DoFs.keys(), self.init_DoFs.values()):
+                    for DoF_atoms, DoF_value,i in zip(self.init_DoFs.keys(), self.init_DoFs.values(), range(len(self.init_DoFs))):
                         if len(DoF_atoms)==2:
                             const_type="bond"
                         elif len(DoF_atoms)==3:
@@ -552,7 +524,7 @@ class optTS:
                         elif len(DoF_atoms)==4:
                             const_type="dihedral"                    
 
-                        self.constrain_list.append([const_type,DoF_atoms, DoF_value])
+                        self.constrain_list.append([const_type,DoF_atoms, self.move_along(DoF_value,const_type,i)])
                     self.Method.opt_constrain(self.const_settings["xyz_name"],self.constrain_list)
                     self.Method.read_xyz("!result")
                 
@@ -612,22 +584,20 @@ class optTS:
     def alter_grad(self):
         maxgrad=0
         mingrad=1e200
-        rmg=0
+        
         for i in range(self.const_settings["nAtoms"]):
             g_norm=np.linalg.norm(self.grad[i])
-            rmg+=g_norm*g_norm
             maxgrad=max(maxgrad,g_norm)
             mingrad=min(mingrad,g_norm)
-        rmg=(rmg**0.5)/self.const_settings["nAtoms"]
 
         strange_constant=1-(mingrad/maxgrad)**0.1#Эта величина 0..1. Чтобы вначале, когда mingrad/maxgrad большой - все атомы шевелились примерно одинаково быстро, а потом, когда он уменьшается - с той скоростью, с которой должны
-        strange_constant=strange_constant**2#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
+        strange_constant=strange_constant**1.5#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
         #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magick
         print(f"strangeC {strange_constant}")
         for i in range(self.const_settings["nAtoms"]):
             g_norm=np.linalg.norm(self.grad[i])
             self.grad[i]=np.multiply((maxgrad/g_norm)**(strange_constant),self.grad[i])#Вот здесь при большом (около 1) strange_constant все едут примерно со скоростью max_grad (важно по сути только общее направление движения частей системы), а когда структура уже близка к стационарной точке (Strange_constant~=0) атомы двигаются так, как должны по градиенту
-
+        
 
     def apply_grad(self):
         
@@ -905,6 +875,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--steps", type=int, default=2000, help="maximum number of steps that allowed to optimize TS. Default: 2000")
     parser.add_argument("-p", "--programm", default="xtb",help="programm that used for gradient calculation and constraint optimization. \"xtb\" or \"orca\". Default: \"xtb\"")
     parser.add_argument("-xfc","--xtb-force-consant",type=float,default=6.,dest="xfc",help="if using xtb that force constant is used in control file. Default: 6")
+    parser.add_argument("-acc","--acc",type=float,default=0.05, dest="acc",help="if using xtb that acc is used. Default: 0.05")
     parser.add_argument("-oms","--orca-method-string", type=str, default="B3LYP def2-SVP",dest="method_str", help="method string on the top of orca file. Default: \"B3LYP def2-SVP\"")
     parser.add_argument("-OPATH", "--ORCA-PATH", type=str, default="", dest="OPATH",help="PATH of ORCA. Is necessary for multiprocessor calculations")
     parser.add_argument("-onp","--orca-number-processors", type=int, default=1,dest="nprocs", help="number of processors that using in ORCA work. Default: 1")
@@ -925,10 +896,11 @@ if __name__ == "__main__":
           programm=dict(name=args.programm, 
                         method_str=args.method_str,
                         force_constant=args.xfc,
+                        acc=apgs.acc,
                         nprocs=args.nprocs, 
                         memory=args.mem, 
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","sn2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6),do_preopt=False)
+    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0.2)
     
