@@ -629,18 +629,16 @@ class optTS:
         self.mirror()
         
         self.alter_grad()
-        if self.settings["step"]>2000:
+        if self.settings["step"]>20:
             #ADAM
             self.vk = b1*self.vk + (1-b1)*self.grad*self.coef_grad
             self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)*self.coef_grad**2
-            self.xyzs=self.xyzs-3e-3*(self.Gk+eps)**(-0.5) * self.vk
+            self.xyzs=self.xyzs-2.e-3*(self.Gk+eps)**(-0.5) * self.vk
             
             self.update_xyzs_strs()
             self.Method.grad("!result")
             self.Method.read_grad() 
             
-            self.grad, maxgrad=self.get_grad()
-            self.mirror()
         else:#GD - потому что первые 20 происходит значительная смена параметров, и нечего давать её в инерционный алгоритм
             self.apply_grad()
             self.update_xyzs_strs()
@@ -904,5 +902,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","fullerene4_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
+    optTS(xyz_path=os.path.join("tests","apw2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
     
