@@ -29,7 +29,7 @@ class usingMethod:
     #generic functions
     def get_energy(self):
         if self.programm_name=="xtb":
-            return float(self.xyzs_strs[1].split()[1])
+            return float(self.grad_strs[1].split()[6])
         if self.programm_name=="orca":
             return self.__get_energy_orca()
     def read_xyz(self, xyz_name):
@@ -509,10 +509,13 @@ class optTS:
                 self.lens.clear()
                 self.ifprint("lens is clear")
                 self.atoms,self.xyzs=self.get_xyzs()
-                self.prev_xyzs=None
 
                 self.prev_maxgrad=100000
-                self.coef_grad=0.35
+                self.coef_grad=0.7
+                
+                #for ADAM
+                self.vk=np.zeros((self.const_settings["nAtoms"],3))
+                self.Gk=0
 
                 if self.const_settings["do_preopt"]:
                     self.constrain_list=[]
@@ -591,7 +594,7 @@ class optTS:
             mingrad=min(mingrad,g_norm)
 
         strange_constant=1-(mingrad/maxgrad)**0.1#Эта величина 0..1. Чтобы вначале, когда mingrad/maxgrad большой - все атомы шевелились примерно одинаково быстро, а потом, когда он уменьшается - с той скоростью, с которой должны
-        strange_constant=strange_constant**1.5#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
+        strange_constant=strange_constant**1.7#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
         #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magick
         print(f"strangeC {strange_constant}")
         for i in range(self.const_settings["nAtoms"]):
@@ -606,7 +609,8 @@ class optTS:
                 self.xyzs[i][j]-=self.grad[i][j]*self.coef_grad
     
     def update_xyzs_strs(self):
-        self.Method.xyzs_strs=self.Method.xyzs_strs[:2]
+        self.Method.xyzs_strs=self.Method.xyzs_strs[:1]
+        self.Method.xyzs_strs.append(str(self.Method.get_energy())+"\n")
         for i in range(self.const_settings["nAtoms"]):
             self.Method.xyzs_strs.append(f"{self.atoms[i]} {float(self.xyzs[i][0])} {float(self.xyzs[i][1])} {float(self.xyzs[i][2])}\n")
 
@@ -614,20 +618,22 @@ class optTS:
         self.grad=mirror_fn(self.grad,self.xyzs,self.search_DoFs)
 
     def move_DoFs(self):
+        b1=0.9
+        b2=0.99
+        eps=1e-8
         TRUST_RAD=0.01
         #if self.Optimizer==0:
         #    self.Optimizer=bfgs(self.xyzs)
         
         self.grad, maxgrad=self.get_grad()
         self.mirror()
-
-        if self.settings["step"]>20:
-            if type(self.prev_xyzs)== type(None):
-                self.prev_xyzs=self.xyzs
-            pxyzs=self.xyzs
-            yk=np.add(self.xyzs, (self.settings["step"]-1.)/(1.6*self.settings["step"]+2.)*(np.subtract(self.xyzs, self.prev_xyzs))) #accelerated gradient descent
-            self.prev_xyzs=pxyzs
-            self.xyzs=yk
+        
+        self.alter_grad()
+        if self.settings["step"]>2000:
+            #ADAM
+            self.vk = b1*self.vk + (1-b1)*self.grad*self.coef_grad
+            self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)*self.coef_grad**2
+            self.xyzs=self.xyzs-3e-3*(self.Gk+eps)**(-0.5) * self.vk
             
             self.update_xyzs_strs()
             self.Method.grad("!result")
@@ -635,10 +641,11 @@ class optTS:
             
             self.grad, maxgrad=self.get_grad()
             self.mirror()
-        else:
+        else:#GD - потому что первые 20 происходит значительная смена параметров, и нечего давать её в инерционный алгоритм
+            self.apply_grad()
             self.update_xyzs_strs()
             self.Method.grad("!result")
-            self.Method.read_grad() 
+            self.Method.read_grad()
 
         '''self.old_grad=self.grad #euler modified
         self.old_xyzs=self.xyzs
@@ -655,11 +662,6 @@ class optTS:
 
         self.xyzs=self.old_xyzs
         self.grad=np.multiply(0.5,self.old_grad+self.grad)'''
-        rgrad=copy.deepcopy(self.grad)
-        self.alter_grad()
-        self.apply_grad()
-        self.update_xyzs_strs()
-        self.grad=rgrad
         
         self.settings["step"]+=1
         if maxgrad<self.prev_maxgrad:
@@ -670,7 +672,7 @@ class optTS:
                 self.coef_grad=0.4
         if(maxgrad*self.coef_grad>TRUST_RAD):
             self.coef_grad=TRUST_RAD/maxgrad
-        print(self.coef_grad)
+        print(f"coef grad {self.coef_grad}")
         self.prev_maxgrad=maxgrad
         return maxgrad
         '''
@@ -902,5 +904,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0.2)
+    optTS(xyz_path=os.path.join("tests","fullerene4_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
     
