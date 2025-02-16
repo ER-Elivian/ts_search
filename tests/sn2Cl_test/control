@@ -1,0 +1,6 @@
+$chrg 1
+$constrain
+    distance: 1, 8, 2.1199894717907593
+    distance: 1, 5, 2.2775810430687016
+    force constant = 6
+$end

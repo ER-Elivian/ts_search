@@ -794,5 +794,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","fullerene3_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
+    optTS(xyz_path=os.path.join("tests","sn2Cl_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, print_output=True,mode="strict", maxstep=10**3, programm=dict(name="xtb", force_constant= 6))
     
