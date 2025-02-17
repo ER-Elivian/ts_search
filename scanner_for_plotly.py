@@ -30,12 +30,20 @@ def increment_bond(scans,counters):
 initial_cwd = os.getcwd()
 rpath=os.path.join(initial_cwd,"da_scan")
 os.chdir(rpath)
-with open(os.path.join(rpath,"scan_structs_glob.xyz"), "w+") as xyzlog:
+
+reaction="to_opt.xyz"
+scanname="scan_init_points"
+structsname="scan_structs_points.xyz"
+if os.path.exists(os.path.join(rpath,structsname)) or os.path.exists(os.path.join(rpath,scanname+".txt")):
+    print("it seems to there are data files. Are you sure to erase it and run scan? Type 'y' to 'yes', other to 'no'")
+    ans_str=input()
+    if ans_str!="y":
+        exit(0)
+
+with open(os.path.join(rpath,structsname), "w+") as xyzlog:
     pass
 scans=[]#nA, nB, init_len, fin_len, steps
 
-reaction="to_opt.xyz"
-scanname="scan_global"
 with open(os.path.join(rpath,scanname+".txt"), "w+") as scanfile:
     pass
 
@@ -81,7 +89,7 @@ while line!="full":
 
     energy=xyzs_strs[1].split()[1]
     length_str+=f"{energy} "
-    with open(os.path.join(rpath,"scan_structs_glob.xyz"), "a") as xyzlog:
+    with open(os.path.join(rpath,structsname), "a") as xyzlog:
         xyzlog.writelines(xyzs_strs)
     if(counters[len(counters)-1]==0):
         length_str="\n"+length_str

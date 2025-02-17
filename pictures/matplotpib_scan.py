@@ -1,5 +1,5 @@
 import numpy as np
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import os
 
 def read_scan(scanpath):
@@ -30,7 +30,7 @@ def read_way(waypath):
         strsplit=w_str.split()
         wx.append(float(strsplit[0]))
         wy.append(float(strsplit[1]))
-        wz.append(float(strsplit[2]))
+        #wz.append(float(strsplit[2]))
     return wx,wy,wz 
 
 initial_cwd = os.getcwd()
@@ -38,26 +38,22 @@ rpath=os.path.join(initial_cwd,"da_scan")
 
 ix,iy,z=read_scan(os.path.join(rpath,"scan_global.txt"))
 x,y=np.meshgrid(ix,iy)
-fig = go.Figure()
-fig.add_surface(x=x, y=y, z=z, colorscale='Reds_r', colorbar_thickness=25, colorbar_len=0.75, opacity=0.7)
-#wx,wy,wz=read_way(os.path.join(rpath,"way_log.txt"))
 
-line_marker = dict(color='blue', width=3)
+ways=[]
+wfpath=os.path.join(os.getcwd(),"scan_opt_da")
+k=0
+while 1:
+    wpath=os.path.join(wfpath,f"work{k}")
+    print(wpath)
+    if not os.path.exists(wpath):
+        break
+    waypath=os.path.join(wpath,"way_log.txt")
+    ways.append(read_way(waypath))
+    k+=1
 
-#fig.add_scatter3d(x=wx, y=wy, z=wz, mode='lines', line=line_marker, name='')
-
-
-
-#Define the second family of coordinate lines
-
-line_marker = dict(color='#101010', width=3)
-x,y=np.meshgrid(iy,ix)
-for xx, yy, zz in zip(x, y, z):
-    fig.add_scatter3d(x=xx, y=yy, z=zz, mode='lines', line=line_marker, name='')
-
-for yy, xx, zz in zip(x, y, np.array(z).T):
-    fig.add_scatter3d(x=xx, y=yy, z=zz, mode='lines', line=line_marker, name='')    
-    
-
-fig.update_layout(width=700, height=700, showlegend=False)
-fig.write_html("fig.html")
+plt.axes().set_aspect(1)  
+plt.contour(x,y,z,30,zorder=1)
+for i,way in enumerate(ways):
+    plt.plot(way[0],way[1],color=(1,0,0),linewidth=1,zorder=2*i+2)
+    plt.scatter(way[0][0],way[1][1],color=(0,0,0),linewidth=1,zorder=2*i+3)
+plt.savefig("fig_scan", dpi=300)

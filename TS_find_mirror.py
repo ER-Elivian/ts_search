@@ -504,7 +504,7 @@ class optTS:
     def proceed(self):
         while self.not_completed:
             if self.settings["bond_reach_critical_len"]==True:
-                 
+                
                 self.Optimizer=0
                 self.lens.clear()
                 self.ifprint("lens is clear")
@@ -536,17 +536,30 @@ class optTS:
                 self.Method.grad("!result")
                 self.Method.read_grad() 
                 
+                '''self.log("","way_log.txt")
+                str_way=""
+                for DoF_atoms in self.init_DoFs.keys():
+                    if len(DoF_atoms)==2:
+                        str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
+                str_way+="\n"
+                self.log(str_way,"way_log.txt")'''
+                
+
                 self.settings["bond_reach_critical_len"]=False
     
             else:
-                
-
-                #self.log(f"{self.xyzs_strs[1].split()[1]}\n",os.path.join(self.const_settings["rpath"],"log_E"))
-        
+            
                 self.constrain_list=[]
                 
                 proj_len=self.move_DoFs()
                 self.not_completed = not self.check_tresholds_converged(proj_len)
+                
+                str_way=""
+                for DoF_atoms in self.init_DoFs.keys():
+                    if len(DoF_atoms)==2:
+                        str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
+                str_way+="\n"
+                self.log(str_way,"way_log.txt")
                 
                 if self.settings["step"]>=self.const_settings["maxstep"]:
                     self.ifprint("\033[91mnot optimized but reached maximum number of steps\033[00m") 
@@ -557,10 +570,7 @@ class optTS:
 
             if self.not_completed:
                 self.ifprint(f'\nstep {self.settings["step"]}')
-                #self.ifprint("gradient calculation")
-            
-                #self.Method.grad("!result")
-                #self.Method.read_grad() 
+
             else:
                 self.log(f"completed at {(datetime.datetime.now()).strftime('%Y m%m d%d %H:%M:%S')}\n",self.logname)
     
@@ -902,5 +912,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","apw2_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
+    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
     
