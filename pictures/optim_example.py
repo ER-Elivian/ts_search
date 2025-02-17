@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 e=2.718281828
-func= lambda x,y: -np.cos(3*0.31415*x) - np.cos(3*0.31415*y)
+func= lambda x,y :-x**2 + y**2
 class optim():
     def __init__(self,entry_x,entry_y,vf_x,vf_y,func):
         self.grad=np.zeros((2))
@@ -43,7 +43,7 @@ class optim():
             self.xs.append(self.xy[0])
             self.ys.append(self.xy[1])
             #input()
-            if self.step>=50000:
+            if self.step>=100000:
                 print("!!!!!")
                 break
         print(f"step {self.step} ({self.xy[0]}, {self.xy[1]})")
@@ -63,8 +63,10 @@ class optim():
         
         self.grad, maxgrad=self.get_grad()
         self.mirror()
-        
-        if self.step>0:
+        if(maxgrad*self.coef_grad>TRUST_RAD):
+            self.coef_grad=TRUST_RAD/maxgrad
+
+        if self.step>20:
             #ADAM
             self.vk = b1*self.vk + (1-b1)*self.grad*self.coef_grad
             self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)*self.coef_grad**2
@@ -80,8 +82,7 @@ class optim():
             self.coef_grad*=0.9
             if self.coef_grad<0.4:
                 self.coef_grad=0.4
-        if(maxgrad*self.coef_grad>TRUST_RAD):
-            self.coef_grad=TRUST_RAD/maxgrad
+        
         #print(f"coef grad {self.coef_grad}")
         self.prev_maxgrad=maxgrad
         return maxgrad
@@ -99,36 +100,39 @@ xc, yc = np.meshgrid(np.linspace(-6, 6, 100),
                    np.linspace(-6, 6, 100)) 
 plt.contour(xc, yc, func(xc,yc),linewidths=2.4,zorder=2) 
 
-'''
-I_MIN=-3
-I_MAX=3
-J_MIN=-5.555
-J_MAX=5.555
 
-for i in frange (I_MIN,I_MAX+1,1.5):
-    for j in frange(J_MIN,J_MAX+1,2.222):
-        trace=optim(i+(random.random()-0.5)/3,j+(random.random()-0.5)/3,0.8,1,func)
+J_MIN=-5
+J_MAX=5
+I_MIN=-5
+I_MAX=5
+
+for i in frange (I_MIN,I_MAX+1,3.333):
+    for j in frange(J_MIN,J_MAX+1,3.333):
+        trace=optim(i+(random.random()-0.5)/10,j+(random.random()-0.5)/10,1,0,func)
         xs,ys=trace.proceed()
 
         #color_tuple=(((i-I_MIN)/(I_MAX-I_MIN))**2/2+0.5,(1-((j-J_MIN)/(J_MAX-J_MIN)+(j-J_MIN)/(J_MAX-J_MIN))/2)**2,((j-J_MIN)/(J_MAX-J_MIN))**2)
         color_tuple=(1,0,0)
-        plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))
+        plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
+        plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
+        
         trace=0
-'''     
-
-I_MIN=-3.1415+0.1
+ 
+'''
+I_MIN=-3.1415+3.1415/32
 I_MAX=3.1415
 
 for i in frange (I_MIN,I_MAX+0.1,3.1415*2/16):
-    trace=optim(np.sin(i)/3,np.cos(i)/3,np.sin(i),np.cos(i),func)
+    trace=optim(np.sin(i)/1.2,np.cos(i)/1.2,np.sin(i),np.cos(i),func)
     xs,ys=trace.proceed()
 
     #color_tuple=(((i-I_MIN)/(I_MAX-I_MIN))**2/2+0.5,(1-((j-J_MIN)/(J_MAX-J_MIN)+(j-J_MIN)/(J_MAX-J_MIN))/2)**2,((j-J_MIN)/(J_MAX-J_MIN))**2)
     color_tuple=(random.random(),random.random()/10,random.random()/10)
-    plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=3+(i-I_MIN))
+    plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)))
+    plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN))+1)
     trace=0
-
+'''
 plt.xlim(-6.5, 6.5) 
 plt.ylim(-6.5, 6.5) 
 
-plt.savefig("fig_trace",dpi=300)
+plt.savefig("pictures/fig_trace_multiple_points_saddle",dpi=300)
