@@ -536,13 +536,13 @@ class optTS:
                 self.Method.grad("!result")
                 self.Method.read_grad() 
                 
-                '''self.log("","way_log.txt")
+                self.log("","way_log.txt")
                 str_way=""
                 for DoF_atoms in self.init_DoFs.keys():
                     if len(DoF_atoms)==2:
                         str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
                 str_way+="\n"
-                self.log(str_way,"way_log.txt")'''
+                self.log(str_way,"way_log.txt")
                 
 
                 self.settings["bond_reach_critical_len"]=False
@@ -655,22 +655,6 @@ class optTS:
             self.update_xyzs_strs()
             self.Method.grad("!result")
             self.Method.read_grad()
-
-        '''self.old_grad=self.grad #euler modified
-        self.old_xyzs=self.xyzs
-
-        self.apply_grad()
-        self.update_xyzs_strs()
-
-        self.Method.grad("!result")
-        self.Method.read_grad() 
-        
-        self.atoms,self.xyzs=self.get_xyzs()
-        self.grad, maxgrad=self.get_grad()
-        self.mirror()
-
-        self.xyzs=self.old_xyzs
-        self.grad=np.multiply(0.5,self.old_grad+self.grad)'''
         
         self.settings["step"]+=1
         if maxgrad<self.prev_maxgrad:
@@ -683,155 +667,6 @@ class optTS:
         print(f"coef grad {self.coef_grad}")
         self.prev_maxgrad=maxgrad
         return maxgrad
-        '''
-        MIN_BOND=0.8
-        MAX_BOND=3.5
-        KOEF_ELEM_ANGLE_ACT=8#коэффициент перевода из углового действия [рад] в элементарное [Ангст]
-        KOEF_ELEM_DIHEDRAL_ACT=15
-        MIN_ANG=0.4#[rad]
-        RAD2DEG=57.295779513
-        sum_changes=0
-        min_change=1000
-        max_change=-1000
-        changes=[]
-        self.settings["step"]+=1
-        for i,DoF in enumerate(self.search_DoFs):#найдём градиент (желание растянуться) вдоль каждой связи
-            if DoF[0]=="b":
-                num_A=DoF[1]
-                num_B=DoF[2]
-                key=(num_A, num_B)
-    
-                grad_A=self.Method.extractGradient(num_A)
-                grad_B=self.Method.extractGradient(num_B)
-                AB_dir=self.Method.extract_AB_dir(num_A,num_B)
-                summ_grad=np.subtract(grad_A,grad_B)
-    
-                if not key in self.lens.keys():
-                    self.ifprint(f"key \"{key}\" not in lens.keys()") 
-                    self.lens[key] = self.vec_len(AB_dir)
-    
-                s_g_proj=self.projection(summ_grad, AB_dir)
-                proj_len=self.vec_len(s_g_proj)
-    
-                s_g_p_sign=self.vsign(s_g_proj,AB_dir)
-    
-                changes.append(s_g_p_sign*proj_len)#удлиннение (если отрицательно - укорочение) связи
-                max_change=max(changes[i], max_change)
-                min_change=min(changes[i], min_change)
-                sum_changes+=changes[i]
-            elif DoF[0]=="a":#Здесь необходимо привести всё к некоторому "элементарному дейтвию" - величине, отражающей смещение вдоль каждой координаты в равной степени, как растяжения, так и повороты
-                num_A, num_B, num_C = DoF[1],DoF[2],DoF[3]
-                key = (num_A, num_B, num_C)
-                if not key in self.lens.keys():
-                    self.ifprint(f"key \"{key}\" not in lens.keys()") 
-                    self.lens[key] = self.Method.angle_3_ath(num_A, num_B, num_C)*RAD2DEG
-
-                grad_A=self.Method.extractGradient(num_A)
-                grad_C=self.Method.extractGradient(num_C)
-                BA_dir=self.Method.extract_AB_dir(num_B,num_A)
-                BC_dir=self.Method.extract_AB_dir(num_B,num_C)
-                BA_len=np.linalg.norm(BA_dir)
-                BC_len=np.linalg.norm(BC_dir)
-                norm_ABC=np.cross(BA_dir,BC_dir)
-                norm_ABC=np.multiply(1/np.linalg.norm(norm_ABC), norm_ABC)
-
-                force_A=np.subtract(self.projection(grad_A, norm_ABC), grad_A)
-                force_C=np.subtract(self.projection(grad_C, norm_ABC), grad_C)
-                m_F_A=np.cross(BA_dir,force_A)
-                m_F_C=np.cross(BC_dir,force_C)
-                sum_m=np.subtract(np.multiply(1/BC_len,m_F_C), np.multiply(1/BA_len,m_F_A))
-                sum_m_len=np.linalg.norm(sum_m)
-                s_m_sign=self.vsign(sum_m, norm_ABC)
-                changes.append(s_m_sign*sum_m_len*KOEF_ELEM_ANGLE_ACT)
-                max_change=max(changes[i], max_change)
-                min_change=min(changes[i], min_change)
-            elif DoF[0]=="d":#Здесь необходимо привести всё к некоторому "элементарному дейтвию" - величине, отражающей смещение вдоль каждой координаты в равной степени, как растяжения, так и повороты
-                num_A, num_B, num_C, num_D = DoF[1],DoF[2],DoF[3],DoF[4]
-                key = (num_A, num_B, num_C, num_D)
-                if not key in self.lens.keys():
-                    self.ifprint(f"key \"{key}\" not in lens.keys()") 
-                    self.lens[key] = self.Method.d_4_ath(num_A, num_B, num_C, num_D)*RAD2DEG
-
-                grad_A=self.Method.extractGradient(num_A)
-                grad_D=self.Method.extractGradient(num_D)
-                BA_dir=self.Method.extract_AB_dir(num_B,num_A)
-                BC_dir=self.Method.extract_AB_dir(num_B,num_C)
-                CD_dir=self.Method.extract_AB_dir(num_C,num_D)
-
-                BAr_dir=np.subtract(BA_dir, self.projection(BA_dir, BC_dir))
-                CDr_dir=np.subtract(CD_dir, self.projection(CD_dir, BC_dir))
-                BAr_len=np.linalg.norm(BAr_dir)
-                CDr_len=np.linalg.norm(CDr_dir)
-                
-                force_A=np.subtract(self.projection(grad_A, BC_dir), grad_A)
-                force_D=np.subtract(self.projection(grad_D, BC_dir), grad_D)
-                m_F_A=np.cross(BAr_dir,force_A)
-                m_F_D=np.cross(CDr_dir,force_D)
-                sum_m=np.subtract(np.multiply(1/CDr_len,m_F_D), np.multiply(1/BAr_len,m_F_A))
-                sum_m_len=np.linalg.norm(sum_m)
-                s_m_sign=self.vsign(sum_m, BC_dir)
-                changes.append(s_m_sign*sum_m_len*KOEF_ELEM_DIHEDRAL_ACT)
-                max_change=max(changes[i], max_change)
-                min_change=min(changes[i], min_change)
-
-        div_of_changes=max_change-min_change#отклонение 
-    
-        self.ifprint(f'div of forces: \033[01mcur\033[00m {"{:.8f}".format(div_of_changes)}    \033[01mprev\033[00m {"{:.8f}".format(self.settings["prev_dc"])} (\033{"[92mless" if div_of_changes<self.settings["prev_dc"] else "[091mhigher"}\033[00m)') 
-        
-        inv_chang_to_TS=np.subtract(changes,np.multiply(self.settings["mirror_coef"]+1,self.projection(changes,self.phases_vec)))
-        len_ic=np.linalg.norm(inv_chang_to_TS)
-        inv_chang_to_TS=np.multiply(self.change_fn(len_ic,0.03)/len_ic,inv_chang_to_TS)
-
-        for i,DoF in enumerate(self.search_DoFs):
-            if DoF[0]=="b":
-                key=(DoF[1], DoF[2])
-                bond_len=self.lens[key]
-                #блок того, что надо сделать для каждой связи
-                bond_change=inv_chang_to_TS[i]
-            
-                #~блок того, что надо сделать для каждой связи
-            
-                res_bond=bond_len+bond_change
-                self.ifprint(f'\033[93m{key[0]}, {key[1]}\033[00m\tchange {"{:14.10f}".format(bond_change)}, res {"{:14.10f}".format(res_bond)}')
-                self.constrain_list.append(["bond",key, res_bond])
-                self.lens[key]=res_bond
-    
-                if res_bond>MAX_BOND or res_bond<MIN_BOND:
-                    self.reset()
-                    #если в результате поиска ПС связь порвалась или замкнулась, то  результат сбрасывается, а в начальной геометрии соответствующая связь немного (на 0,02) растягивается или укорачивается, чтобы притяжение или отталкивание было меньше
-    
-                    key=(DoF[1], DoF[2])
-    
-                    if res_bond>MAX_BOND:
-                        self.init_DoFs[key]-=0.1
-                    else:
-                        self.init_DoFs[key]+=0.1
-                    self.ifprint(self.init_DoFs)
-            elif DoF[0]=="a":
-                key=(DoF[1], DoF[2], DoF[3])
-                angle_len=self.lens[key]
-                angle_change=inv_chang_to_TS[i]*RAD2DEG
-                
-                res_angle=angle_len+angle_change
-                self.ifprint(f'\033[93m{key[0]}, {key[1]}, {key[2]}\033[00m\tchange {"{:14.10f}".format(angle_change)}, res {"{:14.10f}".format(res_angle)}')
-                self.constrain_list.append(["angle",key, res_angle])
-                self.lens[key]=res_angle
-            elif DoF[0]=="d":
-                key=(DoF[1], DoF[2], DoF[3], DoF[4])
-                angle_len=self.lens[key]
-                angle_change=inv_chang_to_TS[i]*RAD2DEG
-                
-                res_angle=angle_len+angle_change
-                self.ifprint(f'\033[93m{key[0]}, {key[1]}, {key[2]}, {key[3]}\033[00m\tchange {"{:14.10f}".format(angle_change)}, res {"{:14.10f}".format(res_angle)}')
-                self.constrain_list.append(["dihedral",key, res_angle])
-                self.lens[key]=res_angle
-
-        self.settings["prev_dc"]=div_of_changes
-            
-        self.log(f"{div_of_changes}\n",os.path.join(self.const_settings["rpath"],"log_doc"))
-        return max(abs(min_change),max_change)
-        '''
-    
         
     def mean_force(self):
         search_atoms=set()
