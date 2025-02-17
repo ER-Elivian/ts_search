@@ -1,12 +1,15 @@
 import os
-rpath=os.path.join(os.getcwd(),"da_scan")
+rpath=os.path.join(os.getcwd(),"sn2Cl_scan")
 structsname="scan_structs_points.xyz"
-bts_content="0\nvacuum\nb 1 11 1\nb 4 12 1"
+bts_content="1\nwater\nb 1 8 1\nb 1 5 -1"
 with open(os.path.join(rpath,structsname), "r") as xyzlog:
     lines_xyzs=xyzlog.readlines()
 num=int(lines_xyzs[0])
 
-wpath=os.path.join(os.getcwd(),"scan_opt_da")
+wpath=os.path.join(os.getcwd(),"scan_opt_sn2")
+if not os.path.exists(wpath):
+    os.mkdir(wpath)
+
 n=0#string number in lines_xyzs
 k=0#xyz number
 while n+num+2<=len(lines_xyzs) and k<500:#k<500 just for not folder overflow

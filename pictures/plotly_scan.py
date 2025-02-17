@@ -34,9 +34,9 @@ def read_way(waypath):
     return wx,wy,wz 
 
 initial_cwd = os.getcwd()
-rpath=os.path.join(initial_cwd,"da_scan")
+rpath=os.path.join(initial_cwd,"sn2Cl_scan")
 
-ix,iy,z=read_scan(os.path.join(rpath,"scan_global.txt"))
+ix,iy,z=read_scan(os.path.join(rpath,"scan_points.txt"))
 x,y=np.meshgrid(ix,iy)
 fig = go.Figure()
 fig.add_surface(x=x, y=y, z=z, colorscale='Reds_r', colorbar_thickness=25, colorbar_len=0.75, opacity=0.7)

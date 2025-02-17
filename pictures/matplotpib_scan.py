@@ -34,13 +34,13 @@ def read_way(waypath):
     return wx,wy,wz 
 
 initial_cwd = os.getcwd()
-rpath=os.path.join(initial_cwd,"da_scan")
+rpath=os.path.join(initial_cwd,"sn2Cl_scan")
 
 ix,iy,z=read_scan(os.path.join(rpath,"scan_global.txt"))
 x,y=np.meshgrid(ix,iy)
 
 ways=[]
-wfpath=os.path.join(os.getcwd(),"scan_opt_da")
+wfpath=os.path.join(os.getcwd(),"scan_opt_sn2Cl")
 k=0
 while 1:
     wpath=os.path.join(wfpath,f"work{k}")
@@ -54,6 +54,11 @@ while 1:
 plt.axes().set_aspect(1)  
 plt.contour(x,y,z,30,zorder=1)
 for i,way in enumerate(ways):
-    plt.plot(way[0],way[1],color=(1,0,0),linewidth=1,zorder=2*i+2)
-    plt.scatter(way[0][0],way[1][1],color=(0,0,0),linewidth=1,zorder=2*i+3)
-plt.savefig("fig_scan", dpi=300)
+    plt.plot(way[1],way[0],color=(i/24,0,0),linewidth=1,zorder=2*i+2)
+    plt.scatter(way[1][0],way[0][0],color=(0,0,0),linewidth=1,zorder=2*i+3)
+
+
+plt.xlim(x.min(), x.max()) 
+plt.ylim(y.min(), y.max()) 
+
+plt.savefig("fig_scan2", dpi=300)
