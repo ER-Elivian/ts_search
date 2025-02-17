@@ -28,11 +28,11 @@ def increment_bond(scans,counters):
             
 
 initial_cwd = os.getcwd()
-rpath=os.path.join(initial_cwd,"da_scan")
+rpath=os.path.join(initial_cwd,"sn2Cl_scan")
 os.chdir(rpath)
 
 reaction="to_opt.xyz"
-scanname="scan_init_points"
+scanname="scan_points"
 structsname="scan_structs_points.xyz"
 if os.path.exists(os.path.join(rpath,structsname)) or os.path.exists(os.path.join(rpath,scanname+".txt")):
     print("it seems to there are data files. Are you sure to erase it and run scan? Type 'y' to 'yes', other to 'no'")
@@ -68,7 +68,7 @@ while line!="full":
     control_strs=[]
     length_str=""
 
-    control_top(0,control_strs)
+    control_top(1,control_strs)
     #b_3=sum_3
     for i,scanval in enumerate(scans):
         length=scanval[2]+(scanval[3]-scanval[2])*counters[i]/scanval[4]
@@ -80,7 +80,7 @@ while line!="full":
     with open(os.path.join(rpath,"control"),"w+") as control:
         control.writelines(control_strs)
     with open(os.path.join(rpath,"xtbout"),"w+") as xtbout:
-        subprocess.call(["xtb", reaction, "-I", "control", "--opt","--vtight"],stdout=xtbout)
+        subprocess.call(["xtb", reaction, "-I", "control","--alpb","water", "--opt","--vtight"],stdout=xtbout)
         #subprocess.call(["xtb", "xtbopt.xyz", "--chrg", "1","--alpb","water","--acc","0.5","--grad"],stdout=xtbout)
     
     xyzs_strs=[]
