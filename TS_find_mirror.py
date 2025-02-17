@@ -632,12 +632,13 @@ class optTS:
         b2=0.99
         eps=1e-8
         TRUST_RAD=0.01
-        #if self.Optimizer==0:
-        #    self.Optimizer=bfgs(self.xyzs)
-        
+
         self.grad, maxgrad=self.get_grad()
         self.mirror()
         
+        if(maxgrad*self.coef_grad>TRUST_RAD):
+            self.coef_grad=TRUST_RAD/maxgrad
+            
         self.alter_grad()
         if self.settings["step"]>20:
             #ADAM
@@ -678,8 +679,7 @@ class optTS:
             self.coef_grad*=0.9
             if self.coef_grad<0.4:
                 self.coef_grad=0.4
-        if(maxgrad*self.coef_grad>TRUST_RAD):
-            self.coef_grad=TRUST_RAD/maxgrad
+        
         print(f"coef grad {self.coef_grad}")
         self.prev_maxgrad=maxgrad
         return maxgrad
@@ -912,5 +912,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","da_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
+    optTS(xyz_path=os.path.join("tests","sn2Cl_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
     
