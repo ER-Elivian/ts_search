@@ -56,21 +56,21 @@ class optim():
         return self.xs,self.ys
   
     def move_DoFs(self):
-        b1=0.9
+        b1=0.33
         b2=0.99
         eps=1e-8
-        TRUST_RAD=1
+        TRUST_RAD=1000
         
         self.grad, maxgrad=self.get_grad()
         self.mirror()
         if(maxgrad*self.coef_grad>TRUST_RAD):
             self.coef_grad=TRUST_RAD/maxgrad
 
-        if self.step>20:
+        if self.step>0 or 1:
             #ADAM
-            self.vk = b1*self.vk + (1-b1)*self.grad*self.coef_grad
-            self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)*self.coef_grad**2
-            self.xy=self.xy - 4.e-3*(self.Gk+eps)**(-0.5) * self.vk
+            self.vk = b1*self.vk + (1-b1)*self.grad#*self.coef_grad
+            self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
+            self.xy=self.xy - 4.e-1*(self.Gk+eps)**(-0.5) * self.vk
             
         else:#GD - потому что первые 20 происходит значительная смена параметров, и нечего давать её в инерционный алгоритм
             self.apply_grad()
@@ -115,6 +115,7 @@ for i in frange (I_MIN,I_MAX+1,3.333):
         color_tuple=(1,0,0)
         plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
         plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
+        plt.scatter([xs[-1]], [ys[-1]],color="b",marker="+",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
         
         trace=0
  
@@ -135,4 +136,4 @@ for i in frange (I_MIN,I_MAX+0.1,3.1415*2/16):
 plt.xlim(-6.5, 6.5) 
 plt.ylim(-6.5, 6.5) 
 
-plt.savefig("pictures/fig_trace_multiple_points_saddle",dpi=300)
+plt.savefig("pictures/fig_trace_multiple_points_saddle_roubst",dpi=300)

@@ -30,15 +30,11 @@ def read_way(waypath):
         strsplit=w_str.split()
         wx.append(float(strsplit[0]))
         wy.append(float(strsplit[1]))
-        #wz.append(float(strsplit[2]))
+        wz.append(float(strsplit[2]))
     return wx,wy,wz 
 
 NAME="sn2Cl"
 initial_cwd = os.getcwd()
-rpath=os.path.join(initial_cwd,f"{NAME}_scan")
-
-ix,iy,z=read_scan(os.path.join(rpath,"scan_global.txt"))
-x,y=np.meshgrid(ix,iy)
 
 ways=[]
 wfpath=os.path.join(os.getcwd(),f"scan_opt_{NAME}")
@@ -48,20 +44,22 @@ while 1:
     print(wpath)
     if not os.path.exists(wpath):
         break
-    waypath=os.path.join(wpath,"way_log.txt")
-    ways.append(read_way(waypath))
+    if 1:
+        waypath=os.path.join(wpath,"way_log.txt")
+        ways.append(read_way(waypath))
     k+=1
 
-plt.axes().set_aspect(1)  
-plt.contour(x,y,z,30,zorder=1)
+fig = plt.figure()
+
+ax = fig.add_subplot(projection='3d')
 for i,way in enumerate(ways):
     if(1):
-        plt.plot(way[1],way[0],color=(i/24,0,0),linewidth=1,zorder=2*i+2)
-        plt.scatter(way[1][0],way[0][0],color=(0,0,0),linewidth=1,zorder=2*i+3)
-        plt.scatter(way[1][-1],way[0][-1],color=(0,0,1),marker="+",sizes=[100],linewidth=3,zorder=2*i+3)
+        ax.plot(way[1],way[0],way[2],color=(i/24,0,0),linewidth=1,zorder=2*i+2)
+        ax.scatter(way[1][0],way[0][0],way[2][0],color=(0,0,0),linewidth=1,zorder=2*i+3)
+        ax.scatter(way[1][-1],way[0][-1],way[2][-1],color=(0,0,1),marker="+",sizes=[100],linewidth=3,zorder=2*i+3)
 
+plt.xlim(1.5, 3.5) 
+plt.ylim(1.5, 3.5)
+ax.set_zlim(3.14/4,3.14)
 
-plt.xlim(x.min(), x.max()) 
-plt.ylim(y.min(), y.max()) 
-
-plt.savefig(f"pictures/fig_scan_{NAME}", dpi=300)
+fig.savefig(f"pictures/fig_3d_{NAME}", dpi=300)
