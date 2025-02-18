@@ -541,6 +541,7 @@ class optTS:
                 for DoF_atoms in self.init_DoFs.keys():
                     if len(DoF_atoms)==2:
                         str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
+                str_way+=f"{self.Method.angle_3_ath(5,1,8)} "
                 str_way+="\n"
                 self.log(str_way,"way_log.txt")
                 
@@ -558,6 +559,7 @@ class optTS:
                 for DoF_atoms in self.init_DoFs.keys():
                     if len(DoF_atoms)==2:
                         str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
+                str_way+=f"{self.Method.angle_3_ath(5,1,8)} "
                 str_way+="\n"
                 self.log(str_way,"way_log.txt")
                 
@@ -628,23 +630,23 @@ class optTS:
         self.grad=mirror_fn(self.grad,self.xyzs,self.search_DoFs)
 
     def move_DoFs(self):
-        b1=0.9
+        b1=0.7
         b2=0.99
         eps=1e-8
-        TRUST_RAD=0.01
+        TRUST_RAD=0.1
 
         self.grad, maxgrad=self.get_grad()
         self.mirror()
         
-        if(maxgrad*self.coef_grad>TRUST_RAD):
-            self.coef_grad=TRUST_RAD/maxgrad
+        #if(maxgrad*self.coef_grad>TRUST_RAD):
+        #    self.coef_grad=TRUST_RAD/maxgrad
             
         self.alter_grad()
-        if self.settings["step"]>20:
+        if self.settings["step"]>20 or 1:
             #ADAM
-            self.vk = b1*self.vk + (1-b1)*self.grad*self.coef_grad
-            self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)*self.coef_grad**2
-            self.xyzs=self.xyzs-2.e-3*(self.Gk+eps)**(-0.5) * self.vk
+            self.vk = b1*self.vk + (1-b1)*self.grad#*self.coef_grad
+            self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
+            self.xyzs=self.xyzs-1.5e-2*(self.Gk+eps)**(-0.5) * self.vk
             
             self.update_xyzs_strs()
             self.Method.grad("!result")
@@ -747,5 +749,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","sn2Cl_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.05),do_preopt=True,step_along=0)
+    optTS(xyz_path=os.path.join("tests","fullerene4_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.0001),do_preopt=True,step_along=0)
     
