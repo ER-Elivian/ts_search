@@ -517,6 +517,8 @@ class optTS:
                 self.vk=np.zeros((self.const_settings["nAtoms"],3))
                 self.Gk=0
 
+                self.least_force=10e100
+
                 if self.const_settings["do_preopt"]:
                     self.constrain_list=[]
                     for DoF_atoms, DoF_value,i in zip(self.init_DoFs.keys(), self.init_DoFs.values(), range(len(self.init_DoFs))):
@@ -536,14 +538,14 @@ class optTS:
                 self.Method.grad("!result")
                 self.Method.read_grad() 
                 
-                self.log("","way_log.txt")
-                str_way=""
-                for DoF_atoms in self.init_DoFs.keys():
-                    if len(DoF_atoms)==2:
-                        str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
-                str_way+=f"{self.Method.angle_3_ath(5,1,8)} "
-                str_way+="\n"
-                self.log(str_way,"way_log.txt")
+                #self.log("","way_log.txt")
+                #str_way=""
+                #for DoF_atoms in self.init_DoFs.keys():
+                #    if len(DoF_atoms)==2:
+                 #       str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
+                #str_way+=f"{self.Method.angle_3_ath(5,1,8)} "
+                #str_way+="\n"
+                #self.log(str_way,"way_log.txt")
                 
 
                 self.settings["bond_reach_critical_len"]=False
@@ -553,18 +555,24 @@ class optTS:
                 self.constrain_list=[]
                 
                 proj_len=self.move_DoFs()
+                if proj_len<self.least_force:
+                    print(self.least_force)
+                    self.least_force=proj_len
+                    self.best_xyzs_strs=copy.deepcopy(self.Method.xyzs_strs)
                 self.not_completed = not self.check_tresholds_converged(proj_len)
                 
-                str_way=""
-                for DoF_atoms in self.init_DoFs.keys():
-                    if len(DoF_atoms)==2:
-                        str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
-                str_way+=f"{self.Method.angle_3_ath(5,1,8)} "
-                str_way+="\n"
-                self.log(str_way,"way_log.txt")
+                #str_way=""
+                #for DoF_atoms in self.init_DoFs.keys():
+                #    if len(DoF_atoms)==2:
+                #        str_way+=f"{np.linalg.norm(self.Method.extract_AB_dir(DoF_atoms[0],DoF_atoms[1]))} "
+                #str_way+=f"{self.Method.angle_3_ath(5,1,8)} "
+                #str_way+="\n"
+                #self.log(str_way,"way_log.txt")
                 
                 if self.settings["step"]>=self.const_settings["maxstep"]:
-                    self.ifprint("\033[91mnot optimized but reached maximum number of steps\033[00m") 
+                    self.ifprint("\033[91mnot optimized but reached maximum number of steps. Least-gradient geometry saved\033[00m")
+                    with open(os.path.join(self.const_settings["rpath"],"result.xyz"),"w+") as file:
+                        file.writelines(self.best_xyzs_strs)
                     self.not_completed=False
                 
                 if self.not_completed:
@@ -575,7 +583,8 @@ class optTS:
 
             else:
                 self.log(f"completed at {(datetime.datetime.now()).strftime('%Y m%m d%d %H:%M:%S')}\n",self.logname)
-    
+                with open(os.path.join(self.const_settings["rpath"],"result.xyz"),"w+") as file:
+                    file.writelines(self.best_xyzs_strs)
             
         os.chdir(self.initial_cwd)
 
@@ -606,7 +615,7 @@ class optTS:
             mingrad=min(mingrad,g_norm)
 
         strange_constant=1-(mingrad/maxgrad)**0.1#Эта величина 0..1. Чтобы вначале, когда mingrad/maxgrad большой - все атомы шевелились примерно одинаково быстро, а потом, когда он уменьшается - с той скоростью, с которой должны
-        strange_constant=strange_constant**1.7#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
+        strange_constant=strange_constant**1.3#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
         #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magick
         print(f"strangeC {strange_constant}")
         for i in range(self.const_settings["nAtoms"]):
@@ -689,7 +698,7 @@ class optTS:
                 vec_force=self.Method.extractGradient(i)
                 sum_forces+=self.vec_len(vec_force)
                 num_forces+=1
-        return sum_forces/num_forces
+        return sum_forces/num_forces if num_forces else 10000
     
     def check_tresholds_converged(self,proj_len:float):
         trashold_template=lambda name,cur,target,conv:f'{name} trashold {"{:15.7f}".format(cur)} of {"{:15.7f}".format(target)}: \033{"[92m" if conv else "[91mnot "}converged\033[00m'
@@ -749,5 +758,5 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests","fullerene4_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.0001),do_preopt=True,step_along=0)
+    optTS(xyz_path=os.path.join("tests_neb","system1", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.0001),do_preopt=True,step_along=0)
     
