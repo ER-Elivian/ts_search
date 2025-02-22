@@ -48,7 +48,8 @@ def find_vectors(angle):
 
     return v_deriv_0,v_deriv_1,v_deriv_2
 
-a=[2.154,0,0]
-b=[0,0,0]
-c=[0,0,2.154]
-print(np.array(find_vectors([a,b,c])))
+if __name__ == "__main__":
+    a=[2.154,0,0]
+    b=[0,0,0]
+    c=[0,0,2.154]
+    print(np.array(find_vectors([a,b,c])))

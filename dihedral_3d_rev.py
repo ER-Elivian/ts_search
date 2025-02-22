@@ -47,8 +47,9 @@ def find_vectors(dihedral):
 
     return v_deriv_0,v_deriv_1,v_deriv_2,v_deriv_3
 
-a=[1,0,0]
-b=[0,0,0]
-c=[0,1,0]
-d=[0,1,1]
-print(np.array(find_vectors([a,b,c,d])))
+if __name__=="__main__":
+    a=[1,0,0]
+    b=[0,0,0]
+    c=[0,1,0]
+    d=[0,1,1]
+    print(np.array(find_vectors([a,b,c,d])))
