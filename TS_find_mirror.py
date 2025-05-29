@@ -1,6 +1,5 @@
 
 import numpy as np,os,subprocess,datetime,copy
-from pathlib import Path
 from mirror_fn import mirror_fn
 class usingMethod:
     def __init__(self,programm_name, dict_of_pars):
@@ -19,6 +18,7 @@ class usingMethod:
             self.settings["memory"]=dict_of_pars["memory"]
             self.settings["nprocs"]=dict_of_pars["nprocs"]
             self.settings["chrg"]=dict_of_pars["chrg"]
+            self.settings["mult"]=dict_of_pars["mult"]
             self.settings["nAtoms"]=dict_of_pars["nAtoms"]
             self.settings["solvent"]=dict_of_pars["solvent"]
             self.settings["rpath"]=dict_of_pars["rpath"]
@@ -147,18 +147,18 @@ class usingMethod:
     def __opt_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]),"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]),"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
@@ -242,7 +242,7 @@ class usingMethod:
             xyzs_in=self.__read_file(xyz_name)
             if xyzs_in[0].split()[0].isdigit():#xmol
                 xyzs_in=xyzs_in[2:]
-        job.append(f'*xyz {self.settings["chrg"]} 1\n')
+        job.append(f'*xyz {self.settings["chrg"]} {self.settings["mult"]}\n')
         job.extend(xyzs_in)
         job.extend(["\n","*\n"])
         with open(jobname, "w+") as file:
@@ -254,7 +254,7 @@ class usingMethod:
 
         
 class optTS:
-    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), maxstep:int=7000, do_preopt=True,step_along=0, print_output:bool=True):
+    def __init__(self, xyz_path:str,threshold_force:float=0, threshold_rel:float=0, mirror_coef:float=1, programm=dict(name="xtb"), mult=1, maxstep:int=7000, do_preopt=True,step_along=0, print_output:bool=True):
         cwd=os.getcwd()
         
         rpath=os.path.join(cwd, os.path.dirname(xyz_path))
@@ -264,12 +264,10 @@ class optTS:
         if threshold_force==0 and threshold_rel==0:
             print("please, enter threshold_force or (and) threshold_rel")
             return
-        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep), do_preopt=do_preopt,step_along=step_along)
+        self.const_settings=dict(rpath=rpath,xyz_name=xyz_name,print_output=print_output, threshold_force=threshold_force,threshold_rel=threshold_rel,maxstep=int(maxstep),mult=mult, do_preopt=do_preopt,step_along=step_along)
         self.settings=dict(step=0,prev_dc=100,bond_reach_critical_len=True, mirror_coef=mirror_coef)
 
-        self.log("",os.path.join(self.const_settings["rpath"],"log_doc"))
-        self.log("",os.path.join(self.const_settings["rpath"],"log_E"))
-        self.log("",os.path.join(self.const_settings["rpath"],"way_log.txt"))
+        #self.log("",os.path.join(self.const_settings["rpath"],"way_log.txt"))
 
         self.initial_cwd = os.getcwd()
         os.chdir(self.const_settings["rpath"])
@@ -310,6 +308,7 @@ class optTS:
                             
                             rpath=self.const_settings["rpath"],
                             chrg=self.const_settings["chrg"],
+                            mult=self.const_settings["mult"],
                             solvent=self.const_settings["solvent"],
                             nAtoms=self.const_settings["nAtoms"])
         else:
@@ -466,7 +465,8 @@ class optTS:
         self.ifprint(reac_type)
 
         self.change_projections["signs"]=[]
-        if reac_type==2:#как Дильс-Альдер   
+        self.phases_vec=np.multiply(1/np.linalg.norm(phases_vec),phases_vec)
+        '''if reac_type==2:#как Дильс-Альдер   
             self.change_projections["signs"].append(1)
             for i in range(1,len(phases_vec)):
                 self.change_projections["signs"].append(-1)
@@ -477,7 +477,7 @@ class optTS:
             self.change_projections["signs"].append(1)
             for i in range(2,len(phases_vec)):
                 self.change_projections["signs"].append(-1)
-            self.phases_vec=np.multiply(1/np.linalg.norm(phases_vec),phases_vec)
+            self.phases_vec=np.multiply(1/np.linalg.norm(phases_vec),phases_vec)'''
         self.ifprint(self.phases_vec)
         self.ifprint(init_DoFs)
         return init_DoFs
@@ -661,21 +661,21 @@ class optTS:
             self.Method.grad("!result")
             self.Method.read_grad() 
             
-        else:#GD - потому что первые 20 происходит значительная смена параметров, и нечего давать её в инерционный алгоритм
+        else:#GD
             self.apply_grad()
             self.update_xyzs_strs()
             self.Method.grad("!result")
             self.Method.read_grad()
         
         self.settings["step"]+=1
-        if maxgrad<self.prev_maxgrad:
+        '''if maxgrad<self.prev_maxgrad:
             self.coef_grad*=1.01
         elif maxgrad>self.prev_maxgrad:
             self.coef_grad*=0.9
             if self.coef_grad<0.4:
                 self.coef_grad=0.4
         
-        print(f"coef grad {self.coef_grad}")
+        print(f"coef grad {self.coef_grad}")'''
         self.prev_maxgrad=maxgrad
         return maxgrad
         
@@ -758,5 +758,6 @@ if __name__ == "__main__":
                         ORCA_PATH=args.OPATH))
     '''
     initial_cwd=os.getcwd()
-    optTS(xyz_path=os.path.join("tests_neb","system1", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00004, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.0001),do_preopt=True,step_along=0)
+    optTS(xyz_path=os.path.join("tests","piece_s_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00001, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="xtb", force_constant= 6, acc=0.01),do_preopt=True,step_along=0)
+    #optTS(xyz_path=os.path.join("tests","piece_s_test", "to_opt.xyz"), threshold_rel=8, threshold_force=0.00001, mirror_coef=0.4, print_output=True, maxstep=10**4, programm=dict(name="orca", memory="2000", nprocs=8, ORCA_PATH="/opt", method_str="BP86 def2-SVP"),do_preopt=True,step_along=0)
     
