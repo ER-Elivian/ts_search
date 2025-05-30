@@ -44,8 +44,7 @@ optTS(xyz_path:str,
     threshold_rel:float=0,
     programm=dict(name="xtb"), 
     maxstep:int=7000, 
-    print_output:bool=True, 
-    mode="strict")
+    print_output:bool=True)
 ```
 where:
 - `xyz_path` is path to xyz file 
@@ -53,16 +52,12 @@ where:
 - `threshold_rel=0` is threshold for relative excess of forces on  over the background (rel excess must be less this value)
 - `maxstep=7000` is maximum number of steps. the search is interrupted if this value is reached
 - `print_output` is flag to print output
-- `mode` - if "strict", disables flip a sign on vectors. "autostrict" is same as "strict", but only on reactions that contain less then 4 bonds. If other: always enable flip a sign on vectors. <b>Usually "strict" is better than others.</b>
-
 `threshold_rel` or `threshold_force` must exceed 0. Recommended `threshold_rel`>5, `threshold_force`>0.00002, the less, the more accurately the TS will be found, but at the same time, the longer it will take to find it. If botf `threshold_rel` and `threshold_force` is non-zero both thresholds must converged
-
-## There will be detailed description of the algorithm
-
-In general, the convergence of the algorithm on structures with more than 2 bonds has not been proven, but so far no exceptions have been found (exclude cases that have long-periodic oscillation casued by forming unexpeted bonds while being optimized)
 
 . . .
 
+# `TS_find.ipynb`
+This project as .ipynb file. May be non-synchronized with .py version. Here are optimization code and optimization with artificial PES example (example requires only block with `mirror_fn` to execute)
 
 # `test_opt_xtb.py`
 checking the convergence of the algorithm in xtb. Prodces table contained RMSD to TS calculated with small constrains (`threshold_force`=5e-7) and number of steps
