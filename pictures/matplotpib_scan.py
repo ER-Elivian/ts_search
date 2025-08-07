@@ -33,7 +33,7 @@ def read_way(waypath):
         #wz.append(float(strsplit[2]))
     return wx,wy,wz 
 
-NAME="sn2Cl"
+NAME="Sn2Cl_many_dirs"
 initial_cwd = os.getcwd()
 rpath=os.path.join(initial_cwd,f"{NAME}_scan")
 
@@ -53,15 +53,36 @@ while 1:
     k+=1
 
 plt.axes().set_aspect(1)  
-plt.contour(x,y,z,30,zorder=1)
+
+B_SKIP=5
+NLAYERS=22
+A_SKIP=13
+
+colors_contour=[]
+
+for i in range(B_SKIP):
+    colors_contour.append((0,0,0))
+
+REL_WHITE=0.7
+for i in range(NLAYERS):
+    colors_contour.append(((i/NLAYERS)**0.7,0.5*(i/NLAYERS)**0.7,0.5-0.5*i/NLAYERS))
+    #colors_contour[-1]=(colors_contour[-1][0]*REL_WHITE+1-REL_WHITE, colors_contour[-1][1]*REL_WHITE+1-REL_WHITE, colors_contour[-1][2]*REL_WHITE+1-REL_WHITE)
+    
+
+plt.contour(x,y,z,B_SKIP+NLAYERS+A_SKIP,zorder=1,linewidths=0.5,colors=colors_contour)
+
 for i,way in enumerate(ways):
     if(1):
-        plt.plot(way[1],way[0],color=(i/24,0,0),linewidth=1,zorder=2*i+2)
+        plt.plot(way[1],way[0],color=(1,1,1),linewidth=2,zorder=2*i+2)
+        plt.plot(way[1],way[0],color=(i/6,0,0),linewidth=1,zorder=2*i+2)
         plt.scatter(way[1][0],way[0][0],color=(0,0,0),linewidth=1,zorder=2*i+3)
-        plt.scatter(way[1][-1],way[0][-1],color=(0,0,1),marker="+",sizes=[100],linewidth=3,zorder=2*i+3)
+        if(i!=5):
+            plt.scatter(way[1][-1],way[0][-1],color=(1,0,0),marker="o",sizes=[25],linewidth=3,zorder=2*i+3)
 
 
-plt.xlim(x.min(), x.max()) 
-plt.ylim(y.min(), y.max()) 
+plt.xlim(x.min(), 2.2) 
+plt.ylim(1.8, 2.5) 
+plt.xlabel("d(C, O)")
+plt.ylabel("d(C, Cl)")
 
 plt.savefig(f"pictures/fig_scan_{NAME}", dpi=300)

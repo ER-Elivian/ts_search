@@ -60,6 +60,11 @@ for i,way in enumerate(ways):
 
 plt.xlim(1.5, 3.5) 
 plt.ylim(1.5, 3.5)
-ax.set_zlim(3.14/4,3.14)
+plt.xlabel("     d(C, O)",loc="right")
+plt.ylabel("               d(C, Cl)",loc="top")
+plt.xticks(np.arange(1.5, 3.5, 0.5))
+plt.yticks(np.arange(1.5, 3.5, 0.5))
 
-fig.savefig(f"pictures/fig_3d_{NAME}", dpi=300)
+ax.set_zlim(3.14/4,3.14)
+ax.set_zlabel("a(Cl, C, O)")
+fig.savefig(f"pictures/fig_3d_{NAME}", dpi=600)

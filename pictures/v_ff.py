@@ -14,8 +14,8 @@ xc, yc = np.meshgrid(np.linspace(-6, 6, 100),
                    np.linspace(-6, 6, 100)) 
 
 # Directional vectors 
-u = -d_x(x,y,f)
-v = d_y(x,y,f)
+u = d_x(x,y,f)
+v = -d_y(x,y,f)
 
 plt.axes().set_aspect(1)  
 plt.grid(zorder=0)
@@ -25,8 +25,8 @@ plt.quiver(x, y, u, v, color='g',zorder=6)
 #plt.contour(xc, yc, f(xc,yc),zorder=5) 
 plt.title('') 
   
-plt.scatter([0,0], [3.333,-3.333], color="r",zorder=7)
-#plt.scatter([3.333,-3.333], [0,0], color="orange",zorder=7)
+#plt.scatter([0,0], [3.333,-3.333], color="r",zorder=7)
+plt.scatter([3.333,-3.333], [0,0], color="orange",zorder=7)
 
 # Setting x, y boundary limits 
 plt.xlim(-6.5, 6.5) 
@@ -34,4 +34,4 @@ plt.ylim(-6.5, 6.5)
   
 # Show plot with grid 
  
-plt.savefig("fig",dpi=300)
+plt.savefig("pictures/sadd3_rev_y_ff",dpi=300)

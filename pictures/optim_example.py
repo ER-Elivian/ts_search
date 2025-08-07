@@ -1,16 +1,21 @@
 import numpy as np
 
 import matplotlib.pyplot as plt
-import random
+import random,copy 
 e=2.718281828
-func= lambda x,y :-x**2 + y**2
+hyper_bowl= lambda x,y,a:np.sqrt((x**2+y**2)*a+1)
+hxy = lambda ax,px,x,ay,py,y: np.exp(-(ax*(x-px)**2+ay*(y-py)**2)) #горки
+lxy= lambda ax,px,x,ay,py,y: 1-hxy(ax,px,x,ay,py,y)#ямки
+# (основа [+ горка1 + горка2]) [* ямка1 * ямка2]
+func= lambda x,y : (hyper_bowl(x,y,0.2)+2*hxy(1,0,x,.5,0,y))* (1-np.e**(-0.5*x**2-((y-2)**2))) * (1-np.e**(-0.5*(x-0.5)**2-((y+2)**2)))#ямки
+
 class optim():
     def __init__(self,entry_x,entry_y,vf_x,vf_y,func):
         self.grad=np.zeros((2))
         self.xy=np.array([float(entry_x),float(entry_y)])
         self.phase_vec=np.array([vf_x,vf_y])
         self.func=func
-        self.coef_grad=0.4
+        self.coef_grad=0.1
         self.step=0
         self.prev_maxgrad=1e100
 
@@ -21,7 +26,7 @@ class optim():
     def mirror(self):
         mul_res=np.sum(self.phase_vec*self.grad)
         sqr_res=np.sum(self.phase_vec*self.phase_vec)
-        mirror_grad_cos=min(0.4,abs(mul_res/(sqr_res*np.sum(self.grad*self.grad))**0.5))
+        mirror_grad_cos=min(1,abs(mul_res/(sqr_res*np.sum(self.grad*self.grad))**0.5)/5)
         #print( f"pre-mirr_g cos {abs(mul_res/(sqr_res*np.sum(self.grad*self.grad))**0.5)}")
         #print (f"mirrorgrad cos {mirror_grad_cos}")
         self.grad=np.subtract(self.grad,(1+mirror_grad_cos)*np.multiply(mul_res/sqr_res,self.phase_vec))
@@ -38,15 +43,15 @@ class optim():
     def proceed(self):
         self.xs=[self.xy[0]]
         self.ys=[self.xy[1]]
-        while(self.move_DoFs()>0.001):
+        while(self.move_DoFs()>0.0001):
             #print(f"step {self.step} ({self.xy[0]}, {self.xy[1]})")
             self.xs.append(self.xy[0])
             self.ys.append(self.xy[1])
             #input()
-            if self.step>=100000:
+            if self.step>=10000:
                 print("!!!!!")
                 break
-        print(f"step {self.step} ({self.xy[0]}, {self.xy[1]})")
+        print(f"step {self.step} ({self.xy[0]}, {self.xy[1]}), E={self.func(self.xy[0],self.xy[1])}")
         self.get_grad()
         print(f"get      {self.grad}")
 
@@ -56,32 +61,49 @@ class optim():
         return self.xs,self.ys
   
     def move_DoFs(self):
-        b1=0.33
+        b1=0.2
         b2=0.99
         eps=1e-8
-        TRUST_RAD=1000
-        
-        self.grad, maxgrad=self.get_grad()
-        self.mirror()
-        if(maxgrad*self.coef_grad>TRUST_RAD):
-            self.coef_grad=TRUST_RAD/maxgrad
+        #TRUST_RAD=0.1
 
-        if self.step>0 or 1:
+        self.grad, maxgrad=self.get_grad()
+        self.g=copy.deepcopy(self.grad)
+        self.mirror()
+        self.d_mirror=self.g-self.grad
+
+        #if(maxgrad*self.coef_grad>TRUST_RAD):
+        #    self.coef_grad=TRUST_RAD/maxgrad
+            
+        if self.step>20 or 1:
             #ADAM
             self.vk = b1*self.vk + (1-b1)*self.grad#*self.coef_grad
             self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
-            self.xy=self.xy - 4.e-1*(self.Gk+eps)**(-0.5) * self.vk
+            self.xy=self.xy-5e-2*(self.Gk+eps)**(-0.5) * self.vk
+            
+            self.get_grad()
             
         else:#GD - потому что первые 20 происходит значительная смена параметров, и нечего давать её в инерционный алгоритм
+            self.grad_true=copy.deepcopy(self.grad)
+            
+            '''if (self.step-1)%3==1:
+                self.div=-(self.d_mirror-self.prev_d_mirror)*2
+            elif self.step>1:
+                self.grad=self.grad+self.div'''
+
             self.apply_grad()
-        
+            self.get_grad()
+            self.grad=self.grad_true
+
+        self.prev_d_mirror=self.d_mirror
+        self.prev_grad=copy.deepcopy(self.grad)
+
         self.step+=1
-        if maxgrad<self.prev_maxgrad:
+        '''if maxgrad<self.prev_maxgrad:
             self.coef_grad*=1.01
         elif maxgrad>self.prev_maxgrad:
             self.coef_grad*=0.9
             if self.coef_grad<0.4:
-                self.coef_grad=0.4
+                self.coef_grad=0.4'''
         
         #print(f"coef grad {self.coef_grad}")
         self.prev_maxgrad=maxgrad
@@ -94,46 +116,53 @@ def frange(x, y, jump):
     n+=1
 
 plt.axes().set_aspect(1)  
-plt.grid(zorder=0)
 
-xc, yc = np.meshgrid(np.linspace(-6, 6, 100),  
-                   np.linspace(-6, 6, 100)) 
-plt.contour(xc, yc, func(xc,yc),linewidths=2.4,zorder=2) 
+#plt.grid(zorder=0)
+
+xc, yc = np.meshgrid(np.linspace(-2.3, 2.3, 100),  
+                   np.linspace(-2.3, 2.3, 100)) 
+
+NLAYERS=15
+colors_contour=[]
+for i in range(NLAYERS):
+    colors_contour.append(((i/NLAYERS)**0.7,0.5*(i/NLAYERS)**0.7,0.5-0.5*i/NLAYERS))
+plt.contour(xc, yc, func(xc,yc),NLAYERS,linewidths=0.5,zorder=2,colors=colors_contour) 
 
 
-J_MIN=-5
-J_MAX=5
-I_MIN=-5
-I_MAX=5
+J_MIN=-1.1
+J_MAX=1.1
+I_MIN=-1.5
+I_MAX=1.5
 
-for i in frange (I_MIN,I_MAX+1,3.333):
-    for j in frange(J_MIN,J_MAX+1,3.333):
-        trace=optim(i+(random.random()-0.5)/10,j+(random.random()-0.5)/10,1,0,func)
-        xs,ys=trace.proceed()
+for v,color_tuple in zip ( ((0.5,1), (-0.5,1)),  ((0.7,0,0), (1,0,1)) ):
+    for i in frange (I_MIN,I_MAX+1,1.5):
+        for j in frange(J_MIN,J_MAX+1,2.2):
+            trace=optim(i,j,v[0],v[1],func)
+            xs,ys=trace.proceed()
 
-        #color_tuple=(((i-I_MIN)/(I_MAX-I_MIN))**2/2+0.5,(1-((j-J_MIN)/(J_MAX-J_MIN)+(j-J_MIN)/(J_MAX-J_MIN))/2)**2,((j-J_MIN)/(J_MAX-J_MIN))**2)
-        color_tuple=(1,0,0)
-        plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
-        plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
-        plt.scatter([xs[-1]], [ys[-1]],color="b",marker="+",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
+            #color_tuple=(((i-I_MIN)/(I_MAX-I_MIN))**2/2+0.5,(1-((j-J_MIN)/(J_MAX-J_MIN)+(j-J_MIN)/(J_MAX-J_MIN))/2)**2,((j-J_MIN)/(J_MAX-J_MIN))**2)
+            plt.plot(xs, ys,color=(1,1,1),linewidth=2,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
+            plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
+            plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
+            plt.scatter([xs[-1]], [ys[-1]],color="r",marker="o",linewidth=2,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
         
-        trace=0
- 
-'''
+            trace=0
+
 I_MIN=-3.1415+3.1415/32
 I_MAX=3.1415
 
-for i in frange (I_MIN,I_MAX+0.1,3.1415*2/16):
+'''for i in frange (I_MIN,I_MAX+0.1,3.1415*2/16):
     trace=optim(np.sin(i)/1.2,np.cos(i)/1.2,np.sin(i),np.cos(i),func)
     xs,ys=trace.proceed()
 
     #color_tuple=(((i-I_MIN)/(I_MAX-I_MIN))**2/2+0.5,(1-((j-J_MIN)/(J_MAX-J_MIN)+(j-J_MIN)/(J_MAX-J_MIN))/2)**2,((j-J_MIN)/(J_MAX-J_MIN))**2)
     color_tuple=(random.random(),random.random()/10,random.random()/10)
     plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)))
-    plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN))+1)
+    plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN))*2)
+    plt.scatter([xs[-1]], [ys[-1]],color="b",marker="+",linewidth=1,zorder=2*(3+(i-I_MIN)*2+1))
     trace=0
 '''
-plt.xlim(-6.5, 6.5) 
-plt.ylim(-6.5, 6.5) 
+plt.xlim(-2.3, 2.3) 
+plt.ylim(-2.3, 2.3) 
 
-plt.savefig("pictures/fig_trace_multiple_points_saddle_roubst",dpi=300)
+plt.savefig("pictures/fig_trace_2min",dpi=300)

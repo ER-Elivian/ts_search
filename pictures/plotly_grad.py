@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 import os, copy
 
 b2a=0.529177208
+scale=1.7
 def read_grad(grad_path):
     with open(os.path.join(grad_path,"gradient")) as file:
         gradlines=file.readlines()
@@ -20,14 +21,17 @@ def read_grad(grad_path):
 
 def color_and_size_by_symb(symb):
     if symb=="O":
-        return "red", 11
+        return "red", 22
     if symb=="C":
-        return "black", 11
+        return "black", 18
     if symb=="H":
-        return "gray", 6
+        return "gray", 12
     if symb=="N":
-        return "blue", 10
-    return "magneta", 16
+        return "blue", 22
+    if symb=="Cl":
+        return "green", 30
+    
+    return "violet", 16
 
 def bond_val(v1, v2): #by chemcraft
     if v1>v2:
@@ -35,12 +39,23 @@ def bond_val(v1, v2): #by chemcraft
     if v1=="C":
         if v2=="C":
             return 1.54
+        if v2=="Cl":
+            return 1.77
         if v2=="H":
             return 1.08
         if v2=="N":
             return 1.47
         if v2=="O":
             return 1.44
+    if v1=="Cl":
+        if v2=="Cl":
+            return 1.99
+        if v2=="H":
+            return 1.28
+        if v2=="N":
+            return 1.75
+        if v2=="O":
+            return 1.7
     if v1=="H":
         if v2=="H":
             return 0.74
@@ -76,12 +91,12 @@ def ends_move(a1,a2):
     if a1[0]==0:
         mul_a1=0
     else:
-        mul_a1=0.057*color_and_size_by_symb(a1[0])[1]
+        mul_a1=0.02*color_and_size_by_symb(a1[0])[1]
 
     if a2[0]==0:
         mul_a2=0
     else:
-        mul_a2=0.057*color_and_size_by_symb(a2[0])[1]
+        mul_a2=0.02*color_and_size_by_symb(a2[0])[1]
     
     if a1[0]==0:
         p1=[a1[1]+v[0]*mul_a2, a1[2]+v[1]*mul_a2, a1[3]+v[2]*mul_a2]
@@ -101,7 +116,7 @@ def draw_on_figure(fig,athoms=None, forces=None, connections=None):
             yy=[athom[2]]
             zz=[athom[3]]
             c, s=color_and_size_by_symb(athom[0])
-            line_marker = dict(color=c, size=s)
+            line_marker = dict(color=c, size=s*scale)
         
             fig.add_scatter3d(x=xx, y=yy, z=zz, mode='markers',marker=line_marker,name="", text=f"{athom[0]}{i+1}")
             
@@ -135,10 +150,23 @@ def draw_on_figure(fig,athoms=None, forces=None, connections=None):
                                       name='')
 
 initial_cwd = os.getcwd()
-rpath=os.path.join("/media/user/D/MYDOCS/Projects/TS_search_old/visualization")
+rpath=os.path.join("scan_opt_sn2Cl/work12")
 athoms, forces=read_grad(rpath)
 connects=find_connections(athoms)
 fig = go.Figure()
 draw_on_figure(fig,athoms, forces, connects)
-fig.update_layout(width=900, height=800, showlegend=False, scene=dict(aspectmode="data"))
-fig.show()
+fig.update_layout(width=1900, 
+                  height=1000, 
+                  showlegend=False, 
+                  scene=dict(
+                      xaxis = dict(
+                          visible = False),
+                      yaxis = dict(
+                          visible = False),
+                      zaxis = dict(
+                          visible = False),
+                      aspectmode="data",
+                      camera=dict(
+                        projection=dict(
+                            type="orthographic"))))
+fig.write_html("fig.html")
