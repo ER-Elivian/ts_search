@@ -74,7 +74,7 @@ class optim():
         #if(maxgrad*self.coef_grad>TRUST_RAD):
         #    self.coef_grad=TRUST_RAD/maxgrad
             
-        if self.step>20 or 1:
+        if self.step>20 and 0:
             #ADAM
             self.vk = b1*self.vk + (1-b1)*self.grad#*self.coef_grad
             self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
@@ -126,7 +126,13 @@ NLAYERS=15
 colors_contour=[]
 for i in range(NLAYERS):
     colors_contour.append(((i/NLAYERS)**0.7,0.5*(i/NLAYERS)**0.7,0.5-0.5*i/NLAYERS))
-plt.contour(xc, yc, func(xc,yc),NLAYERS,linewidths=0.5,zorder=2,colors=colors_contour) 
+
+import matplotlib.colors as mcolors
+cmap_custom = mcolors.ListedColormap(colors_contour)
+
+contour_plot=plt.contourf(xc+100, yc, func(xc,yc),NLAYERS,linewidths=0.5,zorder=2,cmap=cmap_custom)#this plot only used for colorbar 
+#plt.colorbar(contour_plot)
+contour_plot=plt.contour(xc, yc, func(xc,yc),NLAYERS,linewidths=0.5,zorder=2,cmap=cmap_custom) 
 
 
 J_MIN=-1.1
@@ -134,7 +140,7 @@ J_MAX=1.1
 I_MIN=-1.5
 I_MAX=1.5
 
-for v,color_tuple in zip ( ((0.5,1), (-0.5,1)),  ((0.7,0,0), (1,0,1)) ):
+"""for v,color_tuple in zip ( ((0.5,1), (-0.5,1)),  ((0.7,0,0), (1,0,1)) ):
     for i in frange (I_MIN,I_MAX+1,1.5):
         for j in frange(J_MIN,J_MAX+1,2.2):
             trace=optim(i,j,v[0],v[1],func)
@@ -147,6 +153,22 @@ for v,color_tuple in zip ( ((0.5,1), (-0.5,1)),  ((0.7,0,0), (1,0,1)) ):
             plt.scatter([xs[-1]], [ys[-1]],color="r",marker="o",linewidth=2,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
         
             trace=0
+"""
+
+v=(-0.5,1)
+color_tuple=(1,0,1)
+for i in frange (I_MIN,I_MAX+1,1.5):
+    for j in frange(J_MIN,J_MAX+1,2.2):
+        trace=optim(i,j,v[0],v[1],func)
+        xs,ys=trace.proceed()
+
+        #color_tuple=(((i-I_MIN)/(I_MAX-I_MIN))**2/2+0.5,(1-((j-J_MIN)/(J_MAX-J_MIN)+(j-J_MIN)/(J_MAX-J_MIN))/2)**2,((j-J_MIN)/(J_MAX-J_MIN))**2)
+        plt.plot(xs, ys,color=(1,1,1),linewidth=2,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
+        plt.plot(xs, ys,color=color_tuple,linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN)))
+        plt.scatter([xs[0]], [ys[0]],color="black",linewidth=1,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
+        plt.scatter([xs[-1]], [ys[-1]],color="r",marker="o",linewidth=2,zorder=2*(3+(i-I_MIN)*(J_MAX-J_MIN)+(j-J_MIN))+1)
+        
+        trace=0
 
 I_MIN=-3.1415+3.1415/32
 I_MAX=3.1415
@@ -164,5 +186,7 @@ I_MAX=3.1415
 '''
 plt.xlim(-2.3, 2.3) 
 plt.ylim(-2.3, 2.3) 
+
+
 
 plt.savefig("pictures/fig_trace_2min",dpi=300)

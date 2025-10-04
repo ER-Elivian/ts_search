@@ -1,8 +1,3 @@
-# `TS_find.py`
-
-## How to use:
-### from terminal
-
 1. Download the project:
 ```
 git clone https://github.com/ER-Elivian/ts_search.git
@@ -13,19 +8,26 @@ git clone https://github.com/ER-Elivian/ts_search.git
 
 4. Run TS search (have to modify tests/da_test, or leave for test calculation):
 
+# `TS_find_mirror.py`
+## How to use:
+### from terminal
+
 ```
-python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -tr 100 -p xtb --steps 300 --print
+python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -tr 100 -p xtb --steps 500 --verbose
 ```
+
+
 where: 
 * `-tf` is threshold for force (maximum force along any bond from bonds_to_search must be less this value)
 * `-tr` is threshold for relative excess of forces on  over the background (rel excess must be less this value)
 * `-p`, `--programm` is the used software ("orca" or "xtb")
 * `--steps`, `-s` is maximum number of steps. the search is interrupted if this value is reached
-* `--print` is flag to print output
+* `--verbose` is flag to print output
+# `TS_find.py`
 
-You also can use ORCA to TS search:
+
 ```
-python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -p orca -s 300 -onp 8 -omm 1500 -OPATH /your/path/to/orca -oms "B3LYP ma-def2-TZVP"
+python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -p orca -s 500 -onp 8 -omm 1500 -OPATH /your/path/to/orca -oms "B3LYP ma-def2-TZVP"
 ```
 <b>NOTE:</b> you may use one or both thresholds
 
@@ -35,9 +37,26 @@ where:
 * `-OPATH`, `--ORCA-PATH` is ORCA `PATH`. It is necessary if `-onp` value is >1
 * `-oms`, `--orca-method-string` is string containing method and basis, it will be written in ORCA's input file after `!` sign
 
+# `TS_find.py`
+Usually worse than TS_find_mirror, but produces more smooth way and more predictable in changes
+## How to use:
+### from terminal
+
+```
+python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -tr 100 -p xtb --steps 500 --verbose
+```
+
+where flags are same as in TS_find_mirror.py: 
+
+You also can use ORCA to TS search:
+```
+python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -p orca -s 500 -onp 8 -omm 1500 -OPATH /your/path/to/orca -oms "B3LYP ma-def2-TZVP"
+```
+
+
 ### in-code Python using:
 
-from TS_find import optTS
+from TS_find_mirror import optTS, or from TS_find
 ```
 optTS(xyz_path:str,
     threshold_force:float=0, 
@@ -58,6 +77,3 @@ where:
 
 # `TS_find.ipynb`
 This project as .ipynb file. May be non-synchronized with .py version. Here are optimization code and optimization with artificial PES example (example requires only block with `mirror_fn` to execute)
-
-# `test_opt_xtb.py`
-checking the convergence of the algorithm in xtb. Prodces table contained RMSD to TS calculated with small constrains (`threshold_force`=5e-7) and number of steps

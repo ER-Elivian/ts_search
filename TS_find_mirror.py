@@ -152,7 +152,8 @@ class usingMethod:
                 p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
-                exit()
+                os.chdir(self.initial_cwd)
+                raise(Exception)
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
@@ -161,7 +162,8 @@ class usingMethod:
                 p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
-                exit()
+                os.chdir(self.initial_cwd)
+                raise(Exception)
 
     def __extractGradient_xtb(self, num):
         line_num=num+self.settings["nAtoms"]+1
@@ -336,6 +338,7 @@ class optTS:
 
         self.not_completed=True
         self.proceed()
+        os.chdir(self.initial_cwd)
     
     #mathematics
     @staticmethod  
@@ -392,7 +395,7 @@ class optTS:
                 pass
         else:
             with open(os.path.join(self.const_settings["rpath"],"TS_search_m_log.xyz"),"a") as file:
-                print(os.path.join(self.const_settings["rpath"],"TS_search_m_log.xyz"))
+                self.ifprint(os.path.join(self.const_settings["rpath"],"TS_search_m_log.xyz"))
                 file.writelines(self.Method.xmol_xyzs_strs())
     
     @staticmethod
@@ -549,12 +552,20 @@ class optTS:
                 
 
                 self.settings["bond_reach_critical_len"]=False
+                if self.const_settings["nDoFs"]>1:
+                    string_curve=f'{self.vec_len(self.Method.extract_AB_dir(self.search_DoFs[0][1],self.search_DoFs[0][2]))} {self.vec_len(self.Method.extract_AB_dir(self.search_DoFs[1][1],self.search_DoFs[1][2]))} {self.Method.get_energy()}\r\n'
+                    self.log(string_curve, "way_log.txt")
     
             else:
             
                 self.constrain_list=[]
                 
                 proj_len=self.move_DoFs()
+
+                if self.const_settings["nDoFs"]>1:
+                    string_curve=f'{self.vec_len(self.Method.extract_AB_dir(self.search_DoFs[0][1],self.search_DoFs[0][2]))} {self.vec_len(self.Method.extract_AB_dir(self.search_DoFs[1][1],self.search_DoFs[1][2]))} {self.Method.get_energy()}\r\n'
+                    self.log(string_curve, "way_log.txt")
+
                 if proj_len<self.least_force:
                     print(self.least_force)
                     self.least_force=proj_len
@@ -617,7 +628,7 @@ class optTS:
         strange_constant=1-(mingrad/maxgrad)**0.1#Эта величина 0..1. Чтобы вначале, когда mingrad/maxgrad большой - все атомы шевелились примерно одинаково быстро, а потом, когда он уменьшается - с той скоростью, с которой должны
         strange_constant=strange_constant**1.3#В целом, она улучшает сходимость реакций между 2 большими молекулами, помогая им повернуться/занять "молекулярно(т.е. в масштабе больших фрагментов)-правильное" положение
         #Физический смыcл как таковой в целом отсутствует - только алгоритмический // strange constant is strongly related to strange magick
-        print(f"strangeC {strange_constant}")
+        self.ifprint(f"strangeC {strange_constant}")
         for i in range(self.const_settings["nAtoms"]):
             g_norm=np.linalg.norm(self.grad[i])
             self.grad[i]=np.multiply((maxgrad/g_norm)**(strange_constant),self.grad[i])#Вот здесь при большом (около 1) strange_constant все едут примерно со скоростью max_grad (важно по сути только общее направление движения частей системы), а когда структура уже близка к стационарной точке (Strange_constant~=0) атомы двигаются так, как должны по градиенту
@@ -636,12 +647,12 @@ class optTS:
             self.Method.xyzs_strs.append(f"{self.atoms[i]} {float(self.xyzs[i][0])} {float(self.xyzs[i][1])} {float(self.xyzs[i][2])}\n")
 
     def mirror(self):
-        self.grad=mirror_fn(self.grad,self.xyzs,self.search_DoFs)
+        self.grad=mirror_fn(self.grad,self.xyzs,self.search_DoFs, self.const_settings["print_output"])
 
     def move_DoFs(self):
-        b1=0.7
-        b2=0.99
-        eps=1e-8
+        b1=0.2
+        b2=0.995
+        eps=1e-5
         TRUST_RAD=0.1
 
         self.grad, maxgrad=self.get_grad()
@@ -655,7 +666,14 @@ class optTS:
             #ADAM
             self.vk = b1*self.vk + (1-b1)*self.grad#*self.coef_grad
             self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
-            self.xyzs=self.xyzs-1.5e-2*(self.Gk+eps)**(-0.5) * self.vk
+            vk_bias=1/(1-b1**(self.settings["step"]+1))*self.vk
+            Gk_bias=(1-b2**(self.settings["step"]+1))*self.Gk
+            
+            vec_chang=-1.5e-2*(Gk_bias+eps)**(-0.5) * vk_bias
+            norm_chang=np.linalg.norm(vec_chang)
+            if(norm_chang>TRUST_RAD):
+                vec_chang=TRUST_RAD/norm_chang*vec_chang
+            self.xyzs=self.xyzs+vec_chang
             
             self.update_xyzs_strs()
             self.Method.grad("!result")
@@ -727,7 +745,7 @@ if __name__ == "__main__":
     parser.add_argument("-tf", "--treshold-force", type=float, default=0.00004,dest="threshold_force", help="that trashold is converged when max force on optimizing bonds less than its value. Default: 0.00004")
     parser.add_argument("-tr", "--treshold-rel", type=float, default=8.,dest="threshold_rel", help="that trashold is converged when max force on optimizing bonds divided by mean force on unconstrained bonds less then its value. Default: 8")
     parser.add_argument("-mc", "--mirror-coef", type=float, default=1.,dest="mirror_coef", help="The projection of the force at reflection of the longitudinal component relative to the phase vector is multiplied by this value. A decrease leads to a decrease in velocity, while an increase can cause oscillations near the transition state. Default: 1")
-    parser.add_argument("--print",const=True, default=False,action='store_const', help="print output")
+    parser.add_argument("--verbose",const=True, default=False,action='store_const', help="print output")
     parser.add_argument("-s", "--steps", type=int, default=2000, help="maximum number of steps that allowed to optimize TS. Default: 2000")
     parser.add_argument("-p", "--programm", default="xtb",help="programm that used for gradient calculation and constraint optimization. \"xtb\" or \"orca\". Default: \"xtb\"")
     parser.add_argument("-xfc","--xtb-force-consant",type=float,default=6.,dest="xfc",help="if using xtb that force constant is used in control file. Default: 6")
@@ -746,13 +764,13 @@ if __name__ == "__main__":
           args.xyz_path, 
           threshold_rel=args.threshold_rel, 
           threshold_force=args.threshold_force, 
-          mirror_coef=1
-          print_output=args.print,
+          mirror_coef=1,
+          print_output=args.verbose,
           maxstep=args.steps, 
           programm=dict(name=args.programm, 
                         method_str=args.method_str,
                         force_constant=args.xfc,
-                        acc=apgs.acc,
+                        acc=args.acc,
                         nprocs=args.nprocs, 
                         memory=args.mem, 
                         ORCA_PATH=args.OPATH))

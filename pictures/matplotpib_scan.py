@@ -20,6 +20,18 @@ def read_scan(scanpath):
             z.append([])
             for E_val in linesplit:
                 z[len(z)-1].append(float(E_val))
+    
+    zmin=100000
+    for i in range(len(z)):
+        for j in range(len(z[0])):
+            if(x[i]>1.6 and y[i]>1.6 and x[i]):
+                zmin=min(zmin,z[i][j])
+            if z[i][j] < -12.870:
+                z[i][j] = -12.870
+    for i in range(len(z)):
+        for j in range(len(z[0])):
+            z[i][j] = (z[i][j]-zmin)*627.509-4
+
     return x,y,z
 
 def read_way(waypath):
@@ -50,18 +62,19 @@ while 1:
         break
     waypath=os.path.join(wpath,"way_log.txt")
     ways.append(read_way(waypath))
+    print(len(ways[-1][0]))
     k+=1
 
 plt.axes().set_aspect(1)  
 
-B_SKIP=5
-NLAYERS=22
+#B_SKIP=5
+NLAYERS=23
 A_SKIP=13
 
 colors_contour=[]
 
-for i in range(B_SKIP):
-    colors_contour.append((0,0,0))
+#for i in range(B_SKIP):
+#    colors_contour.append((0,0,0))
 
 REL_WHITE=0.7
 for i in range(NLAYERS):
@@ -69,20 +82,26 @@ for i in range(NLAYERS):
     #colors_contour[-1]=(colors_contour[-1][0]*REL_WHITE+1-REL_WHITE, colors_contour[-1][1]*REL_WHITE+1-REL_WHITE, colors_contour[-1][2]*REL_WHITE+1-REL_WHITE)
     
 
-plt.contour(x,y,z,B_SKIP+NLAYERS+A_SKIP,zorder=1,linewidths=0.5,colors=colors_contour)
+import matplotlib.colors as mcolors
+cmap_custom = mcolors.ListedColormap(colors_contour)
+
+contour_plot=plt.contourf(x+100, y, z,NLAYERS,zorder=2,cmap=cmap_custom)#this plot only used for colorbar 
+plt.colorbar(contour_plot,label="kcal/mol")
+
+plt.contour(x,y,z,NLAYERS+A_SKIP,zorder=1,linewidths=0.5,colors=colors_contour)
 
 for i,way in enumerate(ways):
     if(1):
-        plt.plot(way[1],way[0],color=(1,1,1),linewidth=2,zorder=2*i+2)
-        plt.plot(way[1],way[0],color=(i/6,0,0),linewidth=1,zorder=2*i+2)
+        plt.plot(way[1],way[0],color=(1,1,1),linewidth=3,zorder=2*i+2)
+        plt.plot(way[1],way[0],color=(0.7*np.sin(np.pi*(0.333+i/len(ways)))**2, 0.7*np.sin(np.pi*i/len(ways))**2,0.7*np.sin(np.pi*(0.666+i/len(ways)))**2 ),linewidth=1,zorder=2*i+2)
         plt.scatter(way[1][0],way[0][0],color=(0,0,0),linewidth=1,zorder=2*i+3)
-        if(i!=5):
+        if(i!=7):
             plt.scatter(way[1][-1],way[0][-1],color=(1,0,0),marker="o",sizes=[25],linewidth=3,zorder=2*i+3)
 
 
 plt.xlim(x.min(), 2.2) 
 plt.ylim(1.8, 2.5) 
-plt.xlabel("d(C, O)")
-plt.ylabel("d(C, Cl)")
+plt.xlabel("forming bond")
+plt.ylabel("breaking bond")
 
 plt.savefig(f"pictures/fig_scan_{NAME}", dpi=300)
