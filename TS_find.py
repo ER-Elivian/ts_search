@@ -143,18 +143,18 @@ class usingMethod:
     def __opt_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", "-gfn1",xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--opt","--vtight"],stdout=xtbout)
+                p=subprocess.call(["xtb", "-gfn1",xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--opt","--vtight"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "-gfn1",xyz_name, "--chrg", str(self.settings["chrg"]),"--grad"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb","-gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 exit()
@@ -244,7 +244,7 @@ class usingMethod:
         with open(jobname, "w+") as file:
             file.writelines(job)
         with open(os.path.join(self.settings["rpath"],"outfile.out"),"w+") as orcaout:
-            subprocess.call([os.path.join(self.ORCA_PATH,"orca"), jobname,"--use-hwthread-cpus"],stdout=orcaout)    
+            subprocess.call([os.path.join(self.ORCA_PATH,"orca"), jobname,"--use-hwthread-cpus --oversubscribe"],stdout=orcaout)    
 
     #~orca
     

@@ -8,6 +8,7 @@ class usingMethod:
 
         if self.programm_name=="xtb":
             self.settings["chrg"]=dict_of_pars["chrg"]
+            self.settings["uhf"]=dict_of_pars["uhf"]
             self.settings["force_constant"]=dict_of_pars["force_constant"]
             self.settings["nAtoms"]=dict_of_pars["nAtoms"]
             self.settings["solvent"]=dict_of_pars["solvent"]
@@ -147,9 +148,9 @@ class usingMethod:
     def __opt_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--uhf", str(self.settings["uhf"]),"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--uhf", str(self.settings["uhf"]),"--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 os.chdir(self.initial_cwd)
@@ -157,9 +158,9 @@ class usingMethod:
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]),"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--uhf", str(self.settings["uhf"]),"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--uhf", str(self.settings["uhf"]),"--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
                 os.chdir(self.initial_cwd)
@@ -298,6 +299,7 @@ class optTS:
         if programm["name"]=="xtb":
             dict_to_uM=dict(rpath=self.const_settings["rpath"],
                             chrg=self.const_settings["chrg"],
+                            uhf=self.const_settings["mult"]-1,
                             force_constant=programm["force_constant"],
                             acc=programm["acc"],
                             solvent=self.const_settings["solvent"],
@@ -418,6 +420,11 @@ class optTS:
         self.search_DoFs=[]
         with open(os.path.join(self.const_settings["rpath"],"bonds_to_search"),"r") as bonds:
             self.const_settings["chrg"]=int(bonds.readline())
+            multline=bonds.readline()
+            if(multline.startswith("auto")):
+                self.const_settings["mult"]=abs(self.const_settings["chrg"])+1
+            else:    
+                self.const_settings["mult"]=int(multline)
             self.const_settings["solvent"]=bonds.readline().split()[0]
             line=bonds.readline()
             while line != "":
