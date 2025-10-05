@@ -8,22 +8,25 @@ class usingMethod:
 
         if self.programm_name=="xtb":
             self.settings["chrg"]=dict_of_pars["chrg"]
+            self.settings["uhf"]=dict_of_pars["uhf"]
             self.settings["force_constant"]=dict_of_pars["force_constant"]
             self.settings["nAtoms"]=dict_of_pars["nAtoms"]
             self.settings["solvent"]=dict_of_pars["solvent"]
             self.settings["rpath"]=dict_of_pars["rpath"]
+            self.settings["acc"]=dict_of_pars["acc"]
         elif self.programm_name=="orca":
             self.settings["method_str"]=dict_of_pars["method_str"]#i.e. "B3LYP def2-SVP"
             self.settings["memory"]=dict_of_pars["memory"]
             self.settings["nprocs"]=dict_of_pars["nprocs"]
             self.settings["chrg"]=dict_of_pars["chrg"]
+            self.settings["mult"]=dict_of_pars["mult"]
             self.settings["nAtoms"]=dict_of_pars["nAtoms"]
             self.settings["solvent"]=dict_of_pars["solvent"]
             self.settings["rpath"]=dict_of_pars["rpath"]
             self.ORCA_PATH=dict_of_pars["ORCA_PATH"]
         else:
             raise ValueError(f"Unknown method: {self.programm_name}")
-    
+        
     #generic functions
     def get_energy(self):
         if self.programm_name=="xtb":
@@ -143,21 +146,24 @@ class usingMethod:
     def __opt_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", "-gfn1",xyz_name, "-I", "control","--vtight","--opt"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--uhf", str(self.settings["uhf"]),"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb", "-gfn1",xyz_name, "-I", "control","--alpb",self.settings["solvent"],"--opt","--vtight"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--uhf", str(self.settings["uhf"]),"--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
-                exit()
+                os.chdir(self.initial_cwd)
+                raise(Exception)
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
             if self.settings["solvent"]=="vacuum":
-                p=subprocess.call(["xtb", "-gfn1",xyz_name, "--chrg", str(self.settings["chrg"]),"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--uhf", str(self.settings["uhf"]),"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             else:
-                p=subprocess.call(["xtb","-gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--alpb", self.settings["solvent"],"--grad"],stdout=xtbout)
+                p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--uhf", str(self.settings["uhf"]),"--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
-                exit()
+                os.chdir(self.initial_cwd)
+                raise(Exception)
+
 
     def __extractGradient_xtb(self, num):
         line_num=num+self.settings["nAtoms"]+1
@@ -295,7 +301,9 @@ class optTS:
         if programm["name"]=="xtb":
             dict_to_uM=dict(rpath=self.const_settings["rpath"],
                             chrg=self.const_settings["chrg"],
+                            uhf=self.const_settings["mult"]-1,
                             force_constant=programm["force_constant"],
+                            acc=programm["acc"],
                             solvent=self.const_settings["solvent"],
                             nAtoms=self.const_settings["nAtoms"])
         elif programm["name"]=="orca":
@@ -306,6 +314,7 @@ class optTS:
                             
                             rpath=self.const_settings["rpath"],
                             chrg=self.const_settings["chrg"],
+                            mult=self.const_settings["mult"],
                             solvent=self.const_settings["solvent"],
                             nAtoms=self.const_settings["nAtoms"])
         else:
@@ -411,6 +420,11 @@ class optTS:
         self.search_DoFs=[]
         with open(os.path.join(self.const_settings["rpath"],"bonds_to_search"),"r") as bonds:
             self.const_settings["chrg"]=int(bonds.readline())
+            multline=bonds.readline()
+            if(multline.startswith("auto")):
+                self.const_settings["mult"]=abs(self.const_settings["chrg"])+1
+            else:    
+                self.const_settings["mult"]=int(multline)
             self.const_settings["solvent"]=bonds.readline().split()[0]
             line=bonds.readline()
             while line != "":
@@ -745,12 +759,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Method for finding TS by targeted bonds. You only need store bonds_to_search and <name>.xyz files to directory/ and then call that programm', epilog="When using ORCA, it's need to export its folder to PATH, LD_LIBRARY_PATH. If using multiprocessoring (openmpi) it's need to export its folders lib/ to LD_LIBRARY_PATH and bin/ to PATH")
     parser.add_argument("xyz_path", type=str, help="xmol .xyz file with structure. File can be in any directory")
     parser.add_argument("-tf", "--treshold-force", type=float, default=0.00004,dest="threshold_force", help="that trashold is converged when max force on optimizing bonds less than its value. Default: 0.00004")
-    parser.add_argument("-tr", "--treshold-threshold_rel", type=float, default=8.,dest="threshold_threshold_rel", help="that trashold is converged when max force on optimizing bonds divided by mean force on unconstrained bonds less then its value. Default: 8")
-    parser.add_argument("--mode", type=str, default="strict", help="mode: if \"strict\", disables flip a sign on vectors. \"autostrict\" is same as \"strict\", but only on reactions that contain less then 4 bonds. If other: always enable flip a sign on vectors. Usually \"strict\" is better than others. Default: \"strict\"")
+    parser.add_argument("-tr", "--treshold-rel", type=float, default=8.,dest="threshold_rel", help="that trashold is converged when max force on optimizing bonds divided by mean force on unconstrained bonds less then its value. Default: 8")
+    parser.add_argument("-mc", "--mirror-coef", type=float, default=1.,dest="mirror_coef", help="The projection of the force at reflection of the longitudinal component relative to the phase vector is multiplied by this value. A decrease leads to a decrease in velocity, while an increase can cause oscillations near the transition state. Default: 1")
     parser.add_argument("--verbose",const=True, default=False,action='store_const', help="print output")
     parser.add_argument("-s", "--steps", type=int, default=2000, help="maximum number of steps that allowed to optimize TS. Default: 2000")
     parser.add_argument("-p", "--programm", default="xtb",help="programm that used for gradient calculation and constraint optimization. \"xtb\" or \"orca\". Default: \"xtb\"")
     parser.add_argument("-xfc","--xtb-force-consant",type=float,default=6.,dest="xfc",help="if using xtb that force constant is used in control file. Default: 6")
+    parser.add_argument("-acc","--acc",type=float,default=0.05, dest="acc",help="if using xtb that acc is used. Default: 0.05")
     parser.add_argument("-oms","--orca-method-string", type=str, default="B3LYP def2-SVP",dest="method_str", help="method string on the top of orca file. Default: \"B3LYP def2-SVP\"")
     parser.add_argument("-OPATH", "--ORCA-PATH", type=str, default="", dest="OPATH",help="PATH of ORCA. Is necessary for multiprocessor calculations")
     parser.add_argument("-onp","--orca-number-processors", type=int, default=1,dest="nprocs", help="number of processors that using in ORCA work. Default: 1")
@@ -763,14 +778,14 @@ if __name__ == "__main__":
         exit(1)
     optTS(
           args.xyz_path, 
-          threshold_rel=args.threshold_threshold_rel, 
+          threshold_rel=args.threshold_rel, 
           threshold_force=args.threshold_force, 
           print_output=args.verbose,
-          mode=args.mode, 
           maxstep=args.steps, 
           programm=dict(name=args.programm, 
                         method_str=args.method_str,
                         force_constant=args.xfc,
+                        acc=args.acc,
                         nprocs=args.nprocs, 
                         memory=args.mem, 
                         ORCA_PATH=args.OPATH))
