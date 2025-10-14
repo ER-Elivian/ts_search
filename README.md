@@ -30,9 +30,9 @@ For example, "b 1 2 1" "b 3 2 -1"  means "bond between 1-st and 2-nd athoms and 
 between 2-nd and 3-rd during the reactions altering with same speed but in opposite direction". If 1-2 breaking, 2-3 forming, if 1-2 forming, 2-3 breaking.
 
 It's not recommended to use bonds between far atoms because such atoms not acting directly and force between that atoms suffring from forces from atoms that are closer to that atoms.
-# `TS_find_mirror.py`
-## How to use:
-### from terminal
+# How to use:
+## from terminal
+### `TS_find_mirror.py`
 
 ```
 python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -tr 100 -p xtb --steps 500 --verbose
@@ -45,7 +45,6 @@ where:
 * `-p`, `--programm` is the used software ("orca" or "xtb")
 * `--steps`, `-s` is maximum number of steps. the search is interrupted if this value is reached
 * `--verbose` is flag to print output
-# `TS_find.py`
 
 
 ```
@@ -59,24 +58,11 @@ where:
 * `-OPATH`, `--ORCA-PATH` is ORCA `PATH`. It is necessary if `-onp` value is >1
 * `-oms`, `--orca-method-string` is string containing method and basis, it will be written in ORCA's input file after `!` sign
 
-# `TS_find.py`
+### `TS_find.py`
 Usually worse than TS_find_mirror, but produces more smooth way and more predictable in changes
-## How to use:
-### from terminal
-
-```
-python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -tr 100 -p xtb --steps 500 --verbose
-```
-
-where flags are same as in TS_find_mirror.py: 
-
-You also can use ORCA to TS search:
-```
-python TS_find.py tests/da_test/to_opt.xyz -tf 0.0001 -p orca -s 500 -onp 8 -omm 1500 -OPATH /your/path/to/orca -oms "B3LYP ma-def2-TZVP"
-```
 
 
-### in-code Python using:
+## in-code Python using:
 
 from TS_find_mirror import optTS, or from TS_find
 ```
