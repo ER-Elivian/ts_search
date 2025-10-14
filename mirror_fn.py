@@ -45,11 +45,12 @@ def mirror_fn(grad,#list 3*N, gradient
     mul_res=np.sum(mirror_vec*m_grad)
     sqr_res=np.sum(mirror_vec*mirror_vec)
     
-    mirror_grad_cos=min(0.3,abs(mul_res/(sqr_res*np.sum(m_grad*m_grad))**0.5)/5)
+    mirror_grad_cos=abs(mul_res/(sqr_res*np.sum(m_grad*m_grad))**0.5)
+    mirror_grad_cos_used=mirror_grad_cos/5
     if(be_verbose):
         print(abs(mul_res/(sqr_res*np.sum(m_grad*m_grad))**0.5))
-        print (f"mgcos {mirror_grad_cos}")
-    m_grad=np.subtract(m_grad,(1+mirror_grad_cos)*np.multiply(mul_res/sqr_res,mirror_vec))#Это и будет эффективная отражнная сила
+        print (f"mgcos {mirror_grad_cos_used}")
+    m_grad=np.subtract(m_grad,(1+mirror_grad_cos_used)*np.multiply(mul_res/sqr_res,mirror_vec))#Это и будет эффективная отражнная сила
     m_grad_mean=np.array([0,0,0])#Вычтем "движение центра масс"
     for i in range(nAthoms):
         m_grad_mean=np.add(m_grad_mean,m_grad[i])
@@ -58,7 +59,7 @@ def mirror_fn(grad,#list 3*N, gradient
     for i in range(nAthoms):
         m_grad[i]-=m_grad_mean
     
-    return m_grad
+    return m_grad, mirror_grad_cos
 
 if __name__ == "__main__":
     '''#sn2

@@ -37,13 +37,13 @@ class usingMethod:
         if self.programm_name=="xtb":
             if xyz_name=="!result":
                 xyz_name="xtbopt.xyz"
-            self.xyzs_strs=self.__read_file(xyz_name)
+            self.xyzs_strs=self.__read_file(xyz_name, self.settings["nAtoms"]+2)
         if self.programm_name=="orca":
             if xyz_name=="!result":
                 xyz_name="inpfile_trj.xyz"
                 self.xyzs_strs=self.__read_last_struct(xyz_name)
             else:
-                self.xyzs_strs=self.__read_file(xyz_name)
+                self.xyzs_strs=self.__read_file(xyz_name, self.settings["nAtoms"]+2)
 
     def read_grad(self):
         if self.programm_name=="xtb":
@@ -98,7 +98,7 @@ class usingMethod:
 
 
     def opt_constrain(self,xyz_name:str,constrains:list):
-        '''constrains is list of same lists: [ctype("bond","angle"),[related athoms],value]'''
+        '''constrains is list of same lists: [ctype("bond","angle"),[related atoms],value]'''
         if self.programm_name=="xtb":
             if xyz_name=="!result":
                 xyz_name="xtbopt.xyz"
@@ -124,13 +124,21 @@ class usingMethod:
             return self.xyzs_strs
         
 
-    def __read_file(self,file_name:str):
+    def __read_file(self,file_name:str, strs_cap=None):
         file_strs=[]
+        
         with open(os.path.join(self.settings["rpath"],file_name),"r") as file:
             line=file.readline()
-            while line!="":
-                file_strs.append(line)
-                line=file.readline()
+            if type(strs_cap)==int:
+                str_num=0
+                while line!="" and str_num<strs_cap:
+                    file_strs.append(line)
+                    line=file.readline()
+                    str_num+=1
+            else:
+                while line!="":
+                    file_strs.append(line)
+                    line=file.readline()
         return file_strs
     
     def __read_last_struct(self,xyz_name):
@@ -153,7 +161,6 @@ class usingMethod:
                 p=subprocess.call(["xtb", "gfn1", xyz_name, "-I", "control","--uhf", str(self.settings["uhf"]),"--alpb",self.settings["solvent"],"--acc", str(self.settings["acc"]), "--opt"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
-                os.chdir(self.initial_cwd)
                 raise(Exception)
     def __grad_xtb(self,xyz_name):
         with open(os.path.join(self.settings["rpath"],"xtbout"),"w+") as xtbout:
@@ -163,7 +170,6 @@ class usingMethod:
                 p=subprocess.call(["xtb", "gfn1", xyz_name, "--chrg", str(self.settings["chrg"]), "--uhf", str(self.settings["uhf"]),"--alpb", self.settings["solvent"],"--acc", str(self.settings["acc"]),"--grad"],stdout=xtbout)
             if p!=0:
                 print("abnormal termination of xtb. Exiting")
-                os.chdir(self.initial_cwd)
                 raise(Exception)
 
     def __extractGradient_xtb(self, num):
@@ -294,7 +300,7 @@ class optTS:
     
         self.xyzs_strs=[]#строки координат атомов (вида "A X Y Z\n", A - символ элемента, X,Y,Z - его координаты)
         self.xyzs_strs=self.read_file(self.const_settings["xyz_name"])
-        self.const_settings["nAtoms"]=len(self.xyzs_strs)-2
+        self.const_settings["nAtoms"]=int(self.xyzs_strs[0])
         
         if programm["name"]=="xtb":
             dict_to_uM=dict(rpath=self.const_settings["rpath"],
@@ -524,8 +530,12 @@ class optTS:
                 self.coef_grad=0.7
                 
                 #for ADAM
-                self.vk=np.zeros((self.const_settings["nAtoms"],3))
-                self.Gk=0
+                self.mt=np.zeros((self.const_settings["nAtoms"],3))
+                self.vt=0
+                self.mt_r=np.zeros((self.const_settings["nAtoms"],3))
+                self.vt_r=0
+                self.diff_mt=np.zeros((self.const_settings["nAtoms"],3))
+                self.diff_vt=0
 
                 self.least_force=10e100
 
@@ -654,38 +664,151 @@ class optTS:
             self.Method.xyzs_strs.append(f"{self.atoms[i]} {float(self.xyzs[i][0])} {float(self.xyzs[i][1])} {float(self.xyzs[i][2])}\n")
 
     def mirror(self):
-        self.grad=mirror_fn(self.grad,self.xyzs,self.search_DoFs, self.const_settings["print_output"])
-
+        self.grad, mirror_grad_cos=mirror_fn(self.grad,self.xyzs,self.search_DoFs, self.const_settings["print_output"])
+        return mirror_grad_cos
     def move_DoFs(self):
         b1=0.2
+        b1_diff=0.7
         b2=0.995
-        eps=1e-5
-        TRUST_RAD=0.1
+        eps=1e-7
+        eta=1.5e-2
+        eta_diff=1e-2
+        eta_r=3e-2
 
         self.grad, maxgrad=self.get_grad()
-        self.mirror()
+        mgcos=self.mirror()
+        mgsin_sqr=(1-mgcos*mgcos)**0.5
         
+        TRUST_RAD=0.1
         #if(maxgrad*self.coef_grad>TRUST_RAD):
         #    self.coef_grad=TRUST_RAD/maxgrad
             
         self.alter_grad()
-        if self.settings["step"]>20 or 1:
-            #ADAM
-            self.vk = b1*self.vk + (1-b1)*self.grad#*self.coef_grad
-            self.Gk = b2*self.Gk + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
-            vk_bias=1/(1-b1**(self.settings["step"]+1))*self.vk
-            Gk_bias=(1-b2**(self.settings["step"]+1))*self.Gk
+        if 1:
+            #no_ADAM (rotational correction)
+            self.mt = b1*self.mt + (1-b1)*self.grad#*self.coef_grad
+            self.vt = b2*self.vt + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
+            mt_bias=1/(1-b1**(self.settings["step"]+1))*self.mt
+            vt_bias=(1-b2**(self.settings["step"]+1))*self.vt
             
-            vec_chang=-1.5e-2*(Gk_bias+eps)**(-0.5) * vk_bias
+            if(self.settings["step"]>0):
+                cur_diff_mt = -self.prev_grad+self.grad
+                self.diff_mt = b1_diff*self.diff_mt + (1-b1_diff)*cur_diff_mt
+                self.diff_vt = b2*self.diff_vt + (1-b2)*np.sum(cur_diff_mt*cur_diff_mt)
+                diff_mt_bias=1/(1-b1_diff**(self.settings["step"]+1))*self.diff_mt
+                diff_vt_bias=(1-b2**(self.settings["step"]+1))*self.diff_vt
+
+                vec_chang=-eta*(vt_bias+eps)**(-0.5) * mt_bias - eta_diff * mgsin_sqr * (diff_vt_bias+eps)**(-0.5)*diff_mt_bias
+            else:
+                vec_chang=-eta*(vt_bias+eps)**(-0.5) * mt_bias
+
             norm_chang=np.linalg.norm(vec_chang)
             if(norm_chang>TRUST_RAD):
                 vec_chang=TRUST_RAD/norm_chang*vec_chang
             self.xyzs=self.xyzs+vec_chang
             
+            self.prev_grad=copy.deepcopy(self.grad)
+            
+            self.update_xyzs_strs()
+            self.Method.grad("!result")
+            self.Method.read_grad() 
+        elif 0:
+            #ADAM (Egor idea)
+            self.mt = b1*self.mt + (1-b1)*self.grad#*self.coef_grad
+            self.vt = b2*self.vt + (1-b2)*np.sum(self.grad*self.grad)#*self.coef_grad**2
+            mt_bias=1/(1-b1**(self.settings["step"]+1))*self.mt
+            vt_bias=1/(1-b2**(self.settings["step"]+1))*self.vt
+            
+            if(self.settings["step"]>0):
+                v_c_1=-eta*(vt_bias**(-0.5)+eps) * mt_bias
+                vec_chang=v_c_1 +0.3*(v_c_1+ eta * (self.vt_bias_prev**(-0.5)+eps)*self.mt_bias_prev)
+            else:
+                vec_chang=-eta*(vt_bias+eps)**(-0.5) * mt_bias
+
+            norm_chang=np.linalg.norm(vec_chang)
+            if(norm_chang>TRUST_RAD):
+                vec_chang=TRUST_RAD/norm_chang*vec_chang
+            self.xyzs=self.xyzs+vec_chang
+            
+            self.vt_bias_prev=vt_bias
+            self.mt_bias_prev=mt_bias
+            
             self.update_xyzs_strs()
             self.Method.grad("!result")
             self.Method.read_grad() 
             
+        elif 0:
+            if(self.settings["step"]<1):
+                #adam (rotational correction)
+                self.prev_grad=copy.deepcopy(self.grad)
+                
+                self.apply_grad()
+                self.update_xyzs_strs()
+                self.Method.grad("!result")
+                self.Method.read_grad()
+            else:
+                self.mt = b1*self.mt + (1-b1)*self.grad
+                self.vt = b2*self.vt + (1-b2)*np.sum(self.grad*self.grad)
+
+                cur_diff_mt = -self.prev_grad+self.grad
+                self.diff_mt = b1_diff*self.diff_mt + (1-b1_diff)*cur_diff_mt
+                self.diff_vt = b2*self.diff_vt + (1-b2)*np.sum(cur_diff_mt*cur_diff_mt)
+
+                mt_bias=1/(1-b1**(self.settings["step"]))*self.mt
+                vt_bias=1/(1-b2**(self.settings["step"]))*self.vt
+
+                diff_mt_bias=1/(1-b1_diff**(self.settings["step"]))*self.diff_mt
+                diff_vt_bias=1/(1-b2**(self.settings["step"]))*self.diff_vt
+
+                vec_chang=-eta*(vt_bias**(-0.5)+eps) * mt_bias - eta_diff * mgsin_sqr * (diff_vt_bias**(-0.5)+eps) * diff_mt_bias 
+                norm_chang=np.linalg.norm(vec_chang)
+                if(norm_chang>TRUST_RAD):
+                    vec_chang=TRUST_RAD/norm_chang*vec_chang
+                
+                self.xyzs=self.xyzs+vec_chang
+                self.prev_grad=copy.deepcopy(self.grad)
+
+                self.update_xyzs_strs()
+                self.Method.grad("!result")
+                self.Method.read_grad() 
+        elif 0:
+            init_xyzs=copy.deepcopy(self.xyzs)
+            #optimistic ADAM
+            self.mt = b1*self.mt + (1-b1)*self.grad
+            self.vt = b2*self.vt + (1-b2)*np.sum(self.grad*self.grad)
+            mt_bias=1/(1-b1**(self.settings["step"]+1))*self.mt
+            vt_bias=1/(1-b2**(self.settings["step"]+1))*self.vt
+            
+            vec_chang=-eta*(vt_bias**(-0.5)+eps) * mt_bias
+            norm_chang=np.linalg.norm(vec_chang)
+            if(norm_chang>TRUST_RAD):
+                vec_chang=TRUST_RAD/norm_chang*vec_chang
+            self.xyzs=self.xyzs+vec_chang
+            #rotating correction
+            
+            self.update_xyzs_strs()
+            self.Method.grad("!result")
+            self.Method.read_grad() 
+            self.grad, maxgrad=self.get_grad()
+            self.mirror()
+            self.alter_grad()
+            
+            self.mt_r = b1*self.mt_r + (1-b1)*self.grad
+            self.vt_r = b2*self.vt_r + (1-b2)*np.sum(self.grad*self.grad)
+            
+            mt_r_bias=1/(1-b1**(self.settings["step"]+1))*self.mt_r
+            vt_r_bias=1/(1-b2**(self.settings["step"]+1))*self.vt_r
+
+            vec_chang=-eta_r*(vt_r_bias**(-0.5)+eps) * mt_r_bias
+            norm_chang=np.linalg.norm(vec_chang)
+            if(norm_chang>TRUST_RAD):
+                vec_chang=TRUST_RAD/norm_chang*vec_chang
+
+            self.xyzs==init_xyzs+vec_chang
+
+            self.update_xyzs_strs()
+            self.Method.grad("!result")
+            self.Method.read_grad() 
         else:#GD
             self.apply_grad()
             self.update_xyzs_strs()

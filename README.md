@@ -1,3 +1,4 @@
+## General how-to
 1. Download the project:
 ```
 git clone https://github.com/ER-Elivian/ts_search.git
@@ -8,6 +9,27 @@ git clone https://github.com/ER-Elivian/ts_search.git
 
 4. Run TS search (have to modify tests/da_test, or leave for test calculation):
 
+I use <b>Python 3.12, works om 3.10, earlier versions not tested</b>
+
+### bonds_to_search structure:
+```
+charge
+multiplicity
+solvent
+DoF1
+DoF2
+...
+DoFn
+```
+Where charge and multiplicity are integers, solvent may be "vacuum" for no-solvent
+Any strings after 3-rd begins not with "b","a" or "d" are inored.
+
+DoF string describes DoF change during reaction.
+Use b for bond, a for angle and d for dihedral angle. 
+For example, "b 1 2 1" "b 3 2 -1"  means "bond between 1-st and 2-nd athoms and bond 
+between 2-nd and 3-rd during the reactions altering with same speed but in opposite direction". If 1-2 breaking, 2-3 forming, if 1-2 forming, 2-3 breaking.
+
+It's not recommended to use bonds between far atoms because such atoms not acting directly and force between that atoms suffring from forces from atoms that are closer to that atoms.
 # `TS_find_mirror.py`
 ## How to use:
 ### from terminal
